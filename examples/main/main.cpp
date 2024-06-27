@@ -1182,7 +1182,6 @@ int main(int argc, char ** argv) {
                 fprintf(stderr, "%s: failed to process audio\n", argv[0]);
                 return 10;
             }
-            fprintf(stderr, "audio information: pcmf32 size %d \n", pcmf32.size());
 
         }
 
