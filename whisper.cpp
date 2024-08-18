@@ -2223,7 +2223,7 @@ static bool whisper_encode_internal(
     ggml_abort_callback   abort_callback,
                    void * abort_callback_data) {
     const int64_t t_start_us = ggml_time_us();
-
+    WHISPER_LOG_INFO("%s: Current seek: %d\n", __func__, mel_offset);
     // conv
     {
         auto & alloc = wstate.alloc_conv.alloc;
@@ -5473,8 +5473,15 @@ int whisper_full_with_state(
         WHISPER_LOG_ERROR("%s: audio_ctx is larger than the maximum allowed (%d > %d)\n", __func__, params.audio_ctx, whisper_n_audio_ctx(ctx));
         return -5;
     }
-    state->exp_n_audio_ctx = params.audio_ctx;
-
+    
+    if (params.audio_ctx == -1) {
+        WHISPER_LOG_INFO("%s: params audio_ctx -1 detected\n", __func__);
+        state->exp_n_audio_ctx = GGML_PAD(int(whisper_n_len_from_state(state) / 2.0), 8);
+        WHISPER_LOG_INFO("%s: state exp_n_audio_ctx updated to %d\n", __func__, state->exp_n_audio_ctx);
+    } else {
+        state->exp_n_audio_ctx = params.audio_ctx;
+    }
+    
     // these tokens determine the task that will be performed
     std::vector<whisper_token> prompt_init = { whisper_token_sot(ctx), };
 
@@ -5532,6 +5539,13 @@ int whisper_full_with_state(
         // if only 1 second left, then stop
         if (seek + 100 >= seek_end) {
             break;
+        }
+
+        // if input shorter than 30s, then only do one encoding
+        if (seek_end <= 3000) {
+            if (ctx->state->n_encode >= 1) {
+                break;
+            }
         }
 
         if (params.encoder_begin_callback) {
