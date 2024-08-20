@@ -88,6 +88,7 @@ struct whisper_params {
     std::string openvino_encode_device = "CPU";
 
     std::string dtw = "";
+    std::string audio_tag = "";
 
     std::vector<std::string> fname_inp = {};
     std::vector<std::string> fname_out = {};
@@ -167,6 +168,7 @@ bool whisper_params_parse(int argc, char ** argv, whisper_params & params) {
         else if (arg == "-f"    || arg == "--file")            { params.fname_inp.emplace_back(argv[++i]); }
         else if (arg == "-oved" || arg == "--ov-e-device")     { params.openvino_encode_device = argv[++i]; }
         else if (arg == "-dtw"  || arg == "--dtw")             { params.dtw             = argv[++i]; }
+        else if (arg == "-at"   || arg == "--audio-tag")       { params.audio_tag       = argv[++i];}
         else if (arg == "-ls"   || arg == "--log-score")       { params.log_score       = true; }
         else if (arg == "-ng"   || arg == "--no-gpu")          { params.use_gpu         = false; }
         else if (arg == "-fa"   || arg == "--flash-attn")      { params.flash_attn      = true; }
@@ -234,6 +236,7 @@ void whisper_print_usage(int /*argc*/, char ** argv, const whisper_params & para
     fprintf(stderr, "  -f FNAME,  --file FNAME        [%-7s] input WAV file path\n",                            "");
     fprintf(stderr, "  -oved D,   --ov-e-device DNAME [%-7s] the OpenVINO device used for encode inference\n",  params.openvino_encode_device.c_str());
     fprintf(stderr, "  -dtw MODEL --dtw MODEL         [%-7s] compute token-level timestamps\n",                 params.dtw.c_str());
+    fprintf(stderr, "  -at AUDIO_TAG_PATH --audio-tag AUDIO_TAG_PATH [%s] attach audio tag at the end of the original audio\n", params.audio_tag.c_str());
     fprintf(stderr, "  -ls,       --log-score         [%-7s] log best decoder scores of tokens\n",              params.log_score?"true":"false");
     fprintf(stderr, "  -ng,       --no-gpu            [%-7s] disable GPU\n",                                    params.use_gpu ? "false" : "true");
     fprintf(stderr, "  -fa,       --flash-attn        [%-7s] flash attention\n",                                params.flash_attn ? "true" : "false");
@@ -905,6 +908,34 @@ bool output_lrc(struct whisper_context * ctx, const char * fname, const whisper_
 
 void cb_log_disable(enum ggml_log_level , const char * , void * ) { }
 
+// Function to read numbers from a .csv file and store them in a vector
+std::vector<float> readCSVToVector(const std::string& filename) {
+    std::ifstream file(filename);  // Open the file
+    std::vector<float> data;       // Vector to store the numbers
+    std::string line;
+
+    // Check if the file was opened successfully
+    if (!file.is_open()) {
+        fprintf(stderr, "error: failed to read audio tag file\n");
+        return data;  // Return an empty vector if the file could not be opened
+    }
+
+    // Read each line from the file
+    while (std::getline(file, line)) {
+        try {
+            // Convert the line to a float and store it in the vector
+            data.push_back(std::stof(line));
+        } catch (const std::invalid_argument& e) {
+            fprintf(stderr, "error: failed to read data in audio tag\n");
+        }
+    }
+
+    // Close the file
+    file.close();
+
+    return data;
+}
+
 int main(int argc, char ** argv) {
     whisper_params params;
 
@@ -1049,6 +1080,14 @@ int main(int argc, char ** argv) {
         if (!::read_wav(fname_inp, pcmf32, pcmf32s, params.diarize)) {
             fprintf(stderr, "error: failed to read WAV file '%s'\n", fname_inp.c_str());
             continue;
+        }
+        if (params.audio_tag != "") {
+            std::vector<float> pcmf32_audio_tag = readCSVToVector(params.audio_tag);
+            std::vector<float> audio_with_tag;
+            audio_with_tag.reserve( pcmf32.size() + pcmf32_audio_tag.size());
+            audio_with_tag.insert( audio_with_tag.end(), pcmf32.begin(), pcmf32.end());
+            audio_with_tag.insert( audio_with_tag.end(), pcmf32_audio_tag.begin(), pcmf32_audio_tag.end());
+            pcmf32 = audio_with_tag;
         }
 
         if (!whisper_is_multilingual(ctx)) {
