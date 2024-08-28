@@ -1,12 +1,12 @@
 # stream
 
-This is a naive example of performing real-time inference on audio from your microphone.
-The `stream` tool samples the audio every half a second and runs the transcription continously.
-More info is available in [issue #10](https://github.com/ggerganov/whisper.cpp/issues/10).
-
+This is a naive example of performing real-time inference on existing audio files to simulate the whisper stream functionality.
 ```bash
 ./stream -m ./models/ggml-base.en.bin -t 8 --step 500 --length 5000
+./stream_simulation -m models/ggml-base.bin samples/bernie4min.wav --step 3000 -kc
 ```
+--step to set the step length
+--keep-context / -kc to keep the transcript context
 
 https://user-images.githubusercontent.com/1991296/194935793-76afede7-cfa8-48d8-a80f-28ba83be7d09.mp4
 
