@@ -460,6 +460,7 @@ int main(int argc, char ** argv) {
                 return 6;
             }
 
+            whisper_print_timings(ctx);
 
             // update the now time stamp after finishing execution
             now = ggml_time_us() / 1000.0 - start;

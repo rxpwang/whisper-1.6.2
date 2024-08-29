@@ -9,10 +9,12 @@
 
 #include <cassert>
 #include <cstdio>
+#include <regex>
 #include <string>
 #include <thread>
 #include <vector>
 #include <fstream>
+#include <cstring>
 
 
 // command-line parameters
@@ -43,6 +45,10 @@ struct whisper_params {
 
     std::string language  = "en";
     std::string model     = "models/ggml-base.en.bin";
+
+    std::string dtw = "";
+    std::string audio_tag = "";
+
     std::vector<std::string> fname_inp = {};
     std::vector<std::string> fname_out = {};
 };
@@ -84,6 +90,8 @@ bool whisper_params_parse(int argc, char ** argv, whisper_params & params) {
         else if (arg == "-nf"   || arg == "--no-fallback")   { params.no_fallback   = true; }
         else if (arg == "-ps"   || arg == "--print-special") { params.print_special = true; }
         else if (arg == "-kc"   || arg == "--keep-context")  { params.no_context    = false; }
+        else if (arg == "-dtw"  || arg == "--dtw")             { params.dtw             = argv[++i]; }
+        else if (arg == "-at"   || arg == "--audio-tag")       { params.audio_tag       = argv[++i];}
         else if (arg == "-l"    || arg == "--language")      { params.language      = argv[++i]; }
         else if (arg == "-m"    || arg == "--model")         { params.model         = argv[++i]; }
         //else if (arg == "-f"    || arg == "--file")          { params.fname_out     = argv[++i]; }
@@ -123,6 +131,8 @@ void whisper_print_usage(int /*argc*/, char ** argv, const whisper_params & para
     fprintf(stderr, "  -nf,      --no-fallback   [%-7s] do not use temperature fallback while decoding\n", params.no_fallback ? "true" : "false");
     fprintf(stderr, "  -ps,      --print-special [%-7s] print special tokens\n",                           params.print_special ? "true" : "false");
     fprintf(stderr, "  -kc,      --keep-context  [%-7s] keep context between audio chunks\n",              params.no_context ? "false" : "true");
+    fprintf(stderr, "  -dtw MODEL --dtw MODEL         [%-7s] compute token-level timestamps\n",                 params.dtw.c_str());
+    fprintf(stderr, "  -at AUDIO_TAG_PATH --audio-tag AUDIO_TAG_PATH [%s] attach audio tag at the end of the original audio\n", params.audio_tag.c_str());
     fprintf(stderr, "  -l LANG,  --language LANG [%-7s] spoken language\n",                                params.language.c_str());
     fprintf(stderr, "  -m FNAME, --model FNAME   [%-7s] model path\n",                                     params.model.c_str());
     fprintf(stderr, "  -of FNAME, --output-file FNAME [%-7s] output file path (without file extension)\n",      "");
@@ -164,7 +174,33 @@ void precise_sleep(double seconds) {
     } while (elapsed < seconds);
 }
 
+// Function to read numbers from a .csv file and store them in a vector
+std::vector<float> readCSVToVector(const std::string& filename) {
+    std::ifstream file(filename);  // Open the file
+    std::vector<float> data;       // Vector to store the numbers
+    std::string line;
 
+    // Check if the file was opened successfully
+    if (!file.is_open()) {
+        fprintf(stderr, "error: failed to read audio tag file\n");
+        return data;  // Return an empty vector if the file could not be opened
+    }
+
+    // Read each line from the file
+    while (std::getline(file, line)) {
+        try {
+            // Convert the line to a float and store it in the vector
+            data.push_back(std::stof(line));
+        } catch (const std::invalid_argument& e) {
+            fprintf(stderr, "error: failed to read data in audio tag\n");
+        }
+    }
+
+    // Close the file
+    file.close();
+
+    return data;
+}
 
 int main(int argc, char ** argv) {
     whisper_params params;
@@ -187,7 +223,8 @@ int main(int argc, char ** argv) {
     // make n_new_line = 1 to update pcmf32_old and prompt every time for now
     const int n_new_line = 1;
 
-    params.no_timestamps  = !use_vad;
+    //params.no_timestamps  = !use_vad;
+    params.no_timestamps = false;
     params.no_context    |= use_vad;
     params.max_tokens     = 0;
 
@@ -295,6 +332,10 @@ int main(int argc, char ** argv) {
 
     if (!::read_wav(fname_inp, pcmf32_all, pcmf32s, false)) {
         fprintf(stderr, "error: failed to read WAV file '%s'\n", fname_inp.c_str());
+    }
+    std::vector<float> pcmf32_audio_tag;
+    if (params.audio_tag != "") {
+        pcmf32_audio_tag = readCSVToVector(params.audio_tag);
     }
     /*
     if (!whisper_is_multilingual(ctx)) {
@@ -448,11 +489,19 @@ int main(int argc, char ** argv) {
             wparams.prompt_tokens    = params.no_context ? nullptr : prompt_tokens.data();
             wparams.prompt_n_tokens  = params.no_context ? 0       : prompt_tokens.size();
 
+            if (params.audio_tag != "") {
+                std::vector<float> audio_with_tag;
+                audio_with_tag.reserve( pcmf32.size() + pcmf32_audio_tag.size());
+                audio_with_tag.insert( audio_with_tag.end(), pcmf32.begin(), pcmf32.end());
+                audio_with_tag.insert( audio_with_tag.end(), pcmf32_audio_tag.begin(), pcmf32_audio_tag.end());
+                pcmf32 = audio_with_tag;
+            }
+            
             if (pcmf32.size() < n_samples_step) {
                 pcmf32.resize(n_samples_step, 0.0f); // Pad with zeros
                 is_running = false;
-
             }
+
             printf("\n");
             printf("Start new round of inference, data length %ld\n", pcmf32.size());
             if (whisper_full(ctx, wparams, pcmf32.data(), pcmf32.size()) != 0) {
@@ -460,6 +509,7 @@ int main(int argc, char ** argv) {
                 return 6;
             }
 
+            whisper_print_timings(ctx);
 
             // update the now time stamp after finishing execution
             now = ggml_time_us() / 1000.0 - start;

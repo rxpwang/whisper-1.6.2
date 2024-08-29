@@ -5528,6 +5528,7 @@ int whisper_full_with_state(
     std::vector<beam_candidate> beam_candidates;
 
     // main loop
+    int cur_enc_time = ctx->state->n_encode;
     while (true) {
         if (params.progress_callback) {
             const int progress_cur = (100*(seek - seek_start))/(seek_end - seek_start);
@@ -5543,7 +5544,7 @@ int whisper_full_with_state(
 
         // if input shorter than 30s, then only do one encoding
         if (seek_end <= 3000) {
-            if (ctx->state->n_encode >= 1) {
+            if ((ctx->state->n_encode - cur_enc_time) >= 1) {
                 break;
             }
         }
