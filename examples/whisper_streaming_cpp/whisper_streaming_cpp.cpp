@@ -153,7 +153,7 @@ void get_audio_chunk(const std::vector<float> &pcmf32_all, std::vector<float> &p
     if (pcmf32_index + num_samples > pcmf32_all.size()) {
         num_samples = pcmf32_all.size() - pcmf32_index;
     }
-    printf("Get new chunk of audio start from %ld and end with %ld.\n", pcmf32_index_sample, pcmf32_index_sample + num_samples);
+    printf("Get new chunk of audio start from %lld and end with %lld.\n", pcmf32_index_sample, pcmf32_index_sample + num_samples);
     pcmf32_new.insert(pcmf32_new.end(), pcmf32_all.begin() + pcmf32_index_sample, pcmf32_all.begin() + pcmf32_index_sample + num_samples);
     //pcmf32_index += num_samples;
 }
@@ -200,6 +200,38 @@ std::vector<float> readCSVToVector(const std::string& filename) {
     file.close();
 
     return data;
+}
+
+std::vector<std::tuple<double, double, std::string>> output_word_level_timestamp(
+                struct whisper_context * ctx,
+                const whisper_params & params,
+                bool   full) {
+    const int n_segments = whisper_full_n_segments(ctx);
+    std::vector<std::tuple<double, double, std::string>> records;
+    for (int i = 0; i < n_segments; ++i) {
+        const char * text = whisper_full_get_segment_text(ctx, i);
+
+        const int64_t t0 = whisper_full_get_segment_t0(ctx, i);
+        const int64_t t1 = whisper_full_get_segment_t1(ctx, i);
+
+        if (full) {
+            const int n = whisper_full_n_tokens(ctx, i);
+            for (int j = 0; j < n; ++j) {
+                auto token = whisper_full_get_token_data(ctx, i, j);
+                auto word_tmp = whisper_token_to_str(ctx, token.id);
+                auto time_start = token.t_dtw;
+                auto time_end = token.t_dtw;
+                /* if(token.t0 > -1 && token.t1 > -1) {
+                    fprintf(stdout, "Begin time: %.2lld, End time: %.2lld, Word: %s\n", time_start, time_end, word_tmp);
+                } else {
+                    fprintf(stdout, "token timestamps are -1.\n");
+                } */
+                fprintf(stdout, "Begin time: %.2lld, End time: %.2lld, Word: %s\n", time_start, time_end, word_tmp);
+                records.push_back(std::make_tuple(time_start, time_end, word_tmp));
+            }
+        }
+    }
+    return records;
 }
 
 int main(int argc, char ** argv) {
@@ -249,6 +281,28 @@ int main(int argc, char ** argv) {
 
     cparams.use_gpu    = params.use_gpu;
     cparams.flash_attn = params.flash_attn;
+
+    if (!params.dtw.empty()) {
+        cparams.dtw_token_timestamps = true;
+        cparams.dtw_aheads_preset = WHISPER_AHEADS_NONE;
+
+        if (params.dtw == "tiny")      cparams.dtw_aheads_preset = WHISPER_AHEADS_TINY;
+        if (params.dtw == "tiny.en")   cparams.dtw_aheads_preset = WHISPER_AHEADS_TINY_EN;
+        if (params.dtw == "base")      cparams.dtw_aheads_preset = WHISPER_AHEADS_BASE;
+        if (params.dtw == "base.en")   cparams.dtw_aheads_preset = WHISPER_AHEADS_BASE_EN;
+        if (params.dtw == "small")     cparams.dtw_aheads_preset = WHISPER_AHEADS_SMALL;
+        if (params.dtw == "small.en")  cparams.dtw_aheads_preset = WHISPER_AHEADS_SMALL_EN;
+        if (params.dtw == "medium")    cparams.dtw_aheads_preset = WHISPER_AHEADS_MEDIUM;
+        if (params.dtw == "medium.en") cparams.dtw_aheads_preset = WHISPER_AHEADS_MEDIUM_EN;
+        if (params.dtw == "large.v1")  cparams.dtw_aheads_preset = WHISPER_AHEADS_LARGE_V1;
+        if (params.dtw == "large.v2")  cparams.dtw_aheads_preset = WHISPER_AHEADS_LARGE_V2;
+        if (params.dtw == "large.v3")  cparams.dtw_aheads_preset = WHISPER_AHEADS_LARGE_V3;
+
+        if (cparams.dtw_aheads_preset == WHISPER_AHEADS_NONE) {
+            fprintf(stderr, "error: unknown DTW preset '%s'\n", params.dtw.c_str());
+            return 3;
+        }
+    }
 
     struct whisper_context * ctx = whisper_init_from_file_with_params(params.model.c_str(), cparams);
 
@@ -511,6 +565,7 @@ int main(int argc, char ** argv) {
 
             whisper_print_timings(ctx);
 
+            std::vector<std::tuple<double, double, std::string>> records = output_word_level_timestamp(ctx, params, true);
             // update the now time stamp after finishing execution
             now = ggml_time_us() / 1000.0 - start;
 

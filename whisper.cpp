@@ -5638,11 +5638,14 @@ int whisper_full_with_state(
                 prompt.insert(prompt.end(), prompt_init.begin(), prompt_init.end());
 
                 // print the prompt
-                WHISPER_LOG_DEBUG("\n\n");
+                //WHISPER_LOG_DEBUG("\n\n");
+                WHISPER_LOG_INFO("\n\n");
                 for (int i = 0; i < (int) prompt.size(); i++) {
-                    WHISPER_LOG_DEBUG("%s: prompt[%d] = %s\n", __func__, i, ctx->vocab.id_to_token.at(prompt[i]).c_str());
+                    //WHISPER_LOG_DEBUG("%s: prompt[%d] = %s\n", __func__, i, ctx->vocab.id_to_token.at(prompt[i]).c_str());
+                    WHISPER_LOG_INFO("%s: prompt[%d] = %s\n", __func__, i, ctx->vocab.id_to_token.at(prompt[i]).c_str());
                 }
-                WHISPER_LOG_DEBUG("\n\n");
+                //WHISPER_LOG_DEBUG("\n\n");
+                WHISPER_LOG_INFO("\n\n");
 
                 whisper_kv_cache_clear(state->kv_self);
 
@@ -6195,6 +6198,7 @@ int whisper_full_with_state(
             // [EXPERIMENTAL] Token-level timestamps with DTW
             {
                 const auto n_segments = state->result_all.size() - n_segments_before;
+                WHISPER_LOG_INFO("%s: the n_segments for dtw entering is %d\n", __func__, n_segments);
                 if (ctx->params.dtw_token_timestamps && n_segments) {
                     const int n_frames = std::min(std::min(WHISPER_CHUNK_SIZE * 100, seek_delta), seek_end - seek);
                     whisper_exp_compute_token_level_timestamps_dtw(
@@ -7169,6 +7173,7 @@ static void whisper_exp_compute_token_level_timestamps_dtw(
                                int   medfilt_width,
                                int   n_threads)
 {
+    WHISPER_LOG_INFO("Start DTW word level timestamp estimation.\n");
     const int n_audio_ctx = state->exp_n_audio_ctx > 0 ? state->exp_n_audio_ctx : ctx->model.hparams.n_audio_ctx;
     WHISPER_ASSERT(medfilt_width % 2);
     WHISPER_ASSERT(n_frames <= n_audio_ctx * 2);
@@ -7307,14 +7312,14 @@ static void whisper_exp_compute_token_level_timestamps_dtw(
     }
 
     // Print DTW timestamps
-    /*for (size_t i = i_segment; i < i_segment + n_segments; ++i) {
+    for (size_t i = i_segment; i < i_segment + n_segments; ++i) {
         auto & segment = state->result_all[i];
         for (auto &t: segment.tokens) {
             const char * tok = whisper_token_to_str(ctx, t.id);
-            fprintf(stderr, "|%s|(%.2f) ", tok, (float)t.t_dtw/100);
+            fprintf(stderr, "|%s|(%.2f) (%.2f) (%.2f)", tok, (float)t.t_dtw/100, t.t0, t.t1);
         }
         fprintf(stderr, "\n");
-    }*/
+    }
 
     ggml_free(gctx);
 }
