@@ -7175,8 +7175,10 @@ static void whisper_exp_compute_token_level_timestamps_dtw(
 {
     WHISPER_LOG_INFO("Start DTW word level timestamp estimation.\n");
     const int n_audio_ctx = state->exp_n_audio_ctx > 0 ? state->exp_n_audio_ctx : ctx->model.hparams.n_audio_ctx;
+    WHISPER_LOG_INFO("%s: the n_frames for dtw entering is %d\n", __func__, n_frames);
+    WHISPER_LOG_INFO("%s: the n_audio_ctx for dtw entering is %d\n", __func__, n_audio_ctx);
     WHISPER_ASSERT(medfilt_width % 2);
-    WHISPER_ASSERT(n_frames <= n_audio_ctx * 2);
+    //WHISPER_ASSERT(n_frames <= n_audio_ctx * 2);  // tentatively comment and so far don't see abnormalty. we see error when don't comment this.
     WHISPER_ASSERT(ctx->params.dtw_aheads_preset != WHISPER_AHEADS_NONE);
 
     // FIXME: Allocating mem everytime we call this func

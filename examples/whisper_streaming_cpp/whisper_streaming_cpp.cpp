@@ -219,14 +219,14 @@ std::vector<std::tuple<double, double, std::string>> output_word_level_timestamp
             for (int j = 0; j < n; ++j) {
                 auto token = whisper_full_get_token_data(ctx, i, j);
                 auto word_tmp = whisper_token_to_str(ctx, token.id);
-                auto time_start = token.t_dtw;
-                auto time_end = token.t_dtw;
+                auto time_start = token.t_dtw / 100.0 - 0.01;  // tentatively adopt the estimation of word time as 0.02s. The estimation is from https://github.com/openai/whisper/blob/f82bc59f5ea234d4b97fb2860842ed38519f7e65/notebooks/Multilingual_ASR.ipynb
+                auto time_end = token.t_dtw / 100.0 + 0.01;
                 /* if(token.t0 > -1 && token.t1 > -1) {
                     fprintf(stdout, "Begin time: %.2lld, End time: %.2lld, Word: %s\n", time_start, time_end, word_tmp);
                 } else {
                     fprintf(stdout, "token timestamps are -1.\n");
                 } */
-                fprintf(stdout, "Begin time: %.2lld, End time: %.2lld, Word: %s\n", time_start, time_end, word_tmp);
+                fprintf(stdout, "Begin time: %.2f, End time: %.2f, Word: %s\n", time_start, time_end, word_tmp);
                 records.push_back(std::make_tuple(time_start, time_end, word_tmp));
             }
         }
@@ -661,6 +661,9 @@ int main(int argc, char ** argv) {
             }
             fflush(stdout);
         }
+        //whisper_free(ctx);
+        //struct whisper_context * ctx = whisper_init_from_file_with_params(params.model.c_str(), cparams);
+        //ctx = whisper_init_from_file_with_params(params.model.c_str(), cparams);
     }
 
     //audio.pause();
