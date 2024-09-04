@@ -11,8 +11,17 @@ class HypothesisBuffer {
         std::vector<std::tuple<float, float, std::string>> self_committed_in_buffer;
         std::vector<std::tuple<float, float, std::string>> self_buffer;
         std::vector<std::tuple<float, float, std::string>> self_new;
-        float self_last_committed_time = 0;
-        std::string self_last_committed_word = std::string();
+        float self_last_committed_time;
+        std::string self_last_committed_word;
+
+        // constructor
+        HypothesisBuffer() {
+            self_committed_in_buffer = std::vector<std::tuple<float, float, std::string>>();
+            self_buffer = std::vector<std::tuple<float, float, std::string>>();
+            self_new = std::vector<std::tuple<float, float, std::string>>();
+            self_last_committed_time = 0;
+            self_last_committed_word = "";
+        };
 
         void insert(std::vector<std::tuple<float, float, std::string>>& new_, float offset) {
             // add the offset to the new word list
