@@ -25,7 +25,7 @@ class HypothesisBuffer {
 
         void insert(std::vector<std::tuple<float, float, std::string>>& new_, float offset) {
             // add the offset to the new word list
-            std::transform(new_.begin(), new_.end(), new_.size(),
+            std::transform(new_.begin(), new_.end(), new_.begin(),
                 [offset](const std::tuple<float, float, std::string>& t) {
                     return std::make_tuple(std::get<0>(t)+offset, std::get<1>(t)+offset, std::get<2>(t));
                 }
