@@ -8,39 +8,39 @@
 
 class HypothesisBuffer {
     public:
-        std::vector<std::tuple<float, float, std::string>> self_committed_in_buffer;
-        std::vector<std::tuple<float, float, std::string>> self_buffer;
-        std::vector<std::tuple<float, float, std::string>> self_new;
-        float self_last_committed_time;
+        std::vector<std::tuple<double, double, std::string>> self_committed_in_buffer;
+        std::vector<std::tuple<double, double, std::string>> self_buffer;
+        std::vector<std::tuple<double, double, std::string>> self_new;
+        double self_last_committed_time;
         std::string self_last_committed_word;
 
         // constructor
         HypothesisBuffer() {
-            self_committed_in_buffer = std::vector<std::tuple<float, float, std::string>>();
-            self_buffer = std::vector<std::tuple<float, float, std::string>>();
-            self_new = std::vector<std::tuple<float, float, std::string>>();
+            self_committed_in_buffer = std::vector<std::tuple<double, double, std::string>>();
+            self_buffer = std::vector<std::tuple<double, double, std::string>>();
+            self_new = std::vector<std::tuple<double, double, std::string>>();
             self_last_committed_time = 0;
             self_last_committed_word = "";
         };
 
-        void insert(std::vector<std::tuple<float, float, std::string>>& new_, float offset) {
+        void insert(std::vector<std::tuple<double, double, std::string>>& new_, double offset) {
             // add the offset to the new word list
             std::transform(new_.begin(), new_.end(), new_.begin(),
-                [offset](const std::tuple<float, float, std::string>& t) {
+                [offset](const std::tuple<double, double, std::string>& t) {
                     return std::make_tuple(std::get<0>(t)+offset, std::get<1>(t)+offset, std::get<2>(t));
                 }
             );
 
             // update this->new_ if the word timestamp is in or after the last 0.1s of the last committed time
             std::copy_if(new_.begin(), new_.end(), std::back_inserter(self_new),
-                [this](const std::tuple<float, float, std::string>& t) {
+                [this](const std::tuple<double, double, std::string>& t) {
                     return std::get<0>(t) > self_last_committed_time - 0.1;
                 }
             );
 
             // the loop
             if (!self_new.empty()) {
-                float a, b;
+                double a, b;
                 std::string t;
                 std::tie(a, b, t) = self_new[0];
                 if (std::abs(a - self_last_committed_time) < 1) {
@@ -106,9 +106,9 @@ class HypothesisBuffer {
             }
         }
 
-        std::vector<std::tuple<float, float, std::string>> flush() {
-            std::vector<std::tuple<float, float, std::string>> commit = {};
-            float na, nb;
+        std::vector<std::tuple<double, double, std::string>> flush() {
+            std::vector<std::tuple<double, double, std::string>> commit = {};
+            double na, nb;
             std::string nt;
             while (!self_new.empty()) {
                 std::tie(na, nb, nt) = self_new[0];
@@ -133,14 +133,14 @@ class HypothesisBuffer {
             return commit;
         }
 
-        void pop_committed(float t) {
+        void pop_committed(double t) {
             while (!self_committed_in_buffer.empty() &&
                 std::get<1>(self_committed_in_buffer[0]) <= t) {
                 self_committed_in_buffer.erase(self_committed_in_buffer.begin());
             }
         }
 
-        std::vector<std::tuple<float, float, std::string>> complete() {
+        std::vector<std::tuple<double, double, std::string>> complete() {
             return self_buffer;
         }
 
