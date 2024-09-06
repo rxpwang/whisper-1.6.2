@@ -4082,6 +4082,15 @@ const char * whisper_token_to_str(struct whisper_context * ctx, whisper_token to
     return ctx->vocab.id_to_token.at(token).c_str();
 }
 
+whisper_token whisper_token_to_id(struct whisper_context * ctx, std::string token_str) {
+    auto it = ctx->vocab.token_to_id.find(token_str);
+    if (it == ctx->vocab.token_to_id.end()) {
+        return -1;
+    } else {
+        return it->second;
+    }
+}
+
 whisper_token whisper_token_eot(struct whisper_context * ctx) {
     return ctx->vocab.token_eot;
 }

@@ -6,6 +6,7 @@
 #include "common.h"
 #include "whisper.h"
 #include "ggml.h"
+#include "examples/whisper_streaming_cpp/buffer.h"
 
 #include <cassert>
 #include <cstdio>
@@ -234,6 +235,115 @@ std::vector<std::tuple<double, double, std::string>> output_word_level_timestamp
     return records;
 }
 
+
+// whisper_streaming function OnlineASRProcessor.prompt
+// check committed part and the buffer_time_offset to only select the committed part that before the audio buffer and within a length limit
+// Function to get the token IDs
+std::vector<whisper_token> prompt(struct whisper_context* ctx,
+    const std::vector<std::tuple<double, double, std::string>>& committed, 
+    double buffer_time_offset
+    ) 
+{
+    // Initialize k to the last index of the committed vector
+    size_t k = committed.size() > 0 ? committed.size() - 1 : 0;
+
+    // Adjust k based on the buffer_time_offset
+    while (k > 0 && std::get<1>(committed[k-1]) > buffer_time_offset) {
+        k--;
+    }
+
+    // Get the committed part up to k
+    std::vector<std::string> p;
+    for (size_t i = 0; i < k; i++) {
+        p.push_back(std::get<2>(committed[i]));
+    }
+
+    // Create the prompt by accumulating characters until the length reaches 200
+    std::vector<std::string> prompt;
+    int l = 0;
+    while (!p.empty() && l < 200) {
+        std::string x = p.back();
+        p.pop_back();
+        l += x.length() + 1;  // +1 accounts for space or separator
+        prompt.push_back(x);
+    }
+
+    // Reverse the order of the prompt (from end to beginning)
+    std::reverse(prompt.begin(), prompt.end());
+
+    // Convert prompt to token IDs
+
+    //whisper_vocab * vocab = ctx->vocab;
+    //whisper_vocab& vocab = ctx->vocab;
+
+    std::vector<whisper_token> token_ids;
+    for (const auto& token : prompt) {
+        // Look up the token in the vocabulary and add its corresponding ID
+        //auto it = vocab.token_to_id.find(token);
+        auto it = whisper_token_to_id(ctx, token); // whisper_token_to_id return vocab.token_to_id.find(token)
+        if (it != -1) { //whisper_token_end return vocab.token_to_id.end()
+            token_ids.push_back(it);
+        } else {
+            fprintf(stderr, "%s: Token not found in vocab %s\n", __func__, token.c_str());
+        }
+    }
+
+    return token_ids;
+}
+
+
+// whisper_streaming helper function
+// extract the end time point of each segment and return the vector, for chunk_completed_segment function usage
+std::vector<int64_t> get_end_time_of_res(struct whisper_context* ctx) {
+    std::vector<int64_t> segment_end_time;
+    int n_segments = whisper_full_n_segments(ctx);
+    int64_t end_time_tmp;
+    for (int i = 0; i < n_segments; ++i) {
+        end_time_tmp = whisper_full_get_segment_t1(ctx, i);
+        segment_end_time.push_back(end_time_tmp);
+    }
+    return segment_end_time;
+}
+
+// whisper_streaming audio buffer management
+// 
+void chunk_completed_segment(std::vector<int64_t>& segment_end_time, 
+                             std::vector<std::tuple<double, double, std::string>>& commited, 
+                             std::vector<float>& audio_buffer, 
+                             double& buffer_time_offset) {
+    if (commited.empty()) return;
+
+    std::vector<int64_t>& ends = segment_end_time;
+    double t = std::get<1>(commited.back());
+
+    if (ends.size() > 1) {
+        double e = ends[ends.size() - 2] + buffer_time_offset;
+        
+        while (ends.size() > 2 && e > t) {
+            ends.pop_back();
+            e = ends[ends.size() - 2] + buffer_time_offset;
+        }
+
+        if (e <= t) {
+            //std::cout << "--- segment chunked at " << e << std::endl;
+            fprintf(stderr, "%s: segement chunked at %f\n", __func__, e);
+            // Assuming you have a mechanism to manage transcript_buffer
+            // transcript_buffer.pop_committed(e); // Add your logic for transcript management
+
+            double cut_seconds = e - buffer_time_offset;
+            audio_buffer.erase(audio_buffer.begin(), audio_buffer.begin() + static_cast<int>(cut_seconds * WHISPER_SAMPLE_RATE));
+            buffer_time_offset = e;
+        } else {
+            // std::cout << "--- last segment not within committed area" << std::endl;
+            fprintf(stderr, "%s: last segment not within committed area\n", __func__);
+        }
+    } else {
+        //std::cout << "--- not enough segments to chunk" << std::endl;
+        fprintf(stderr, "%s: not enough segments to chunk\n", __func__);
+    }
+}
+
+
 int main(int argc, char ** argv) {
     whisper_params params;
 
@@ -428,6 +538,12 @@ int main(int argc, char ** argv) {
     int64_t pcmf32_index_end = 0;
     int64_t now = 0;
 
+    // whisper_streaming OnlineASRProcessor related variables
+    std::vector<float> pcmf32_audio_buffer;
+    HypothesisBuffer transcript_buffer;
+    double buffer_time_offset = 0;
+    std::vector<std::tuple<double, double, std::string>> committed;
+
     // main audio loop
     while (is_running) {
         
@@ -472,22 +588,29 @@ int main(int argc, char ** argv) {
             // update the start point for next audio segment
             pcmf32_index = pcmf32_index_end;
 
-            const int n_samples_new = pcmf32_new.size();
+            // whisper_streaming online.insert_audio_chunk()
+            pcmf32_audio_buffer.insert(pcmf32_audio_buffer.end(), pcmf32_new.begin(), pcmf32_new.end());
+            pcmf32 = pcmf32_audio_buffer;
+            //const int n_samples_new = pcmf32_new.size();
 
             // take up to params.length_ms audio from previous iteration
-            const int n_samples_take = std::min((int) pcmf32_old.size(), std::max(0, n_samples_keep + n_samples_len - n_samples_new));
+            //const int n_samples_take = std::min((int) pcmf32_old.size(), std::max(0, n_samples_keep + n_samples_len - n_samples_new));
 
             //printf("processing: take = %d, new = %d, old = %d\n", n_samples_take, n_samples_new, (int) pcmf32_old.size());
 
-            pcmf32.resize(n_samples_new + n_samples_take);
+            //pcmf32.resize(n_samples_new);
 
-            for (int i = 0; i < n_samples_take; i++) {
-                pcmf32[i] = pcmf32_old[pcmf32_old.size() - n_samples_take + i];
-            }
+            //for (int i = 0; i < n_samples_take; i++) {
+            //    pcmf32[i] = pcmf32_old[pcmf32_old.size() - n_samples_take + i];
+            //}
 
-            memcpy(pcmf32.data() + n_samples_take, pcmf32_new.data(), n_samples_new*sizeof(float));
+            //memcpy(pcmf32.data() + n_samples_take, pcmf32_new.data(), n_samples_new*sizeof(float));
 
-            pcmf32_old = pcmf32;
+            //pcmf32_old = pcmf32;
+
+            // prepare the prompt for whisper_streaming
+            prompt_tokens = prompt(ctx, committed, buffer_time_offset);
+
         } else {
             fprintf(stderr, "The use_vad version is not implemented for now.\n");
             /*
@@ -558,6 +681,8 @@ int main(int argc, char ** argv) {
 
             printf("\n");
             printf("Start new round of inference, data length %ld\n", pcmf32.size());
+
+            // whisper_streaming asr.transcribe() in an iter
             if (whisper_full(ctx, wparams, pcmf32.data(), pcmf32.size()) != 0) {
                 fprintf(stderr, "%s: failed to process audio\n", argv[0]);
                 return 6;
@@ -565,7 +690,27 @@ int main(int argc, char ** argv) {
 
             whisper_print_timings(ctx);
 
-            std::vector<std::tuple<double, double, std::string>> records = output_word_level_timestamp(ctx, params, true);
+            // whisper_streaming asr.ts_words in an iter, the return value is the tsw with format [(beg,end,"word1"), ...]
+            std::vector<std::tuple<double, double, std::string>> tsw = output_word_level_timestamp(ctx, params, true);
+
+            // whisper_streaming transcript buffer management
+            // transcript_buffer.insert()
+            transcript_buffer.insert(tsw, buffer_time_offset);
+            // transcript_buffer.flush()
+            std::vector<std::tuple<double, double, std::string>> o = transcript_buffer.flush();
+            // committed.extend(o)
+            committed.insert(committed.end(), committed.begin(), o.end());
+             
+            // whisper_streaming audio_buffer management
+            int64_t s = 15; // tentative buffer_trimming_sec set to be 15s
+            // get the end time of each segments for chunk_completed_segment function
+            std::vector<int64_t> segment_end_time = get_end_time_of_res(ctx);
+
+            if (pcmf32_audio_buffer.size() > (s * WHISPER_SAMPLE_RATE)) {
+                chunk_completed_segment(segment_end_time, committed, pcmf32_audio_buffer, buffer_time_offset);
+            }
+
+
             // update the now time stamp after finishing execution
             now = ggml_time_us() / 1000.0 - start;
 
@@ -633,8 +778,8 @@ int main(int argc, char ** argv) {
             }
 
             ++n_iter;
-
-            if (!use_vad && (n_iter % n_new_line) == 0) {
+            
+            /* if (!use_vad && (n_iter % n_new_line) == 0) {
                 printf("\n");
 
                 // keep part of the audio for next iteration to try to mitigate word boundary issues
@@ -658,7 +803,7 @@ int main(int argc, char ** argv) {
                 }
                 printf("\n");
 
-            }
+            } */
             fflush(stdout);
         }
         //whisper_free(ctx);

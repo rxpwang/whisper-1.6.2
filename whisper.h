@@ -6,6 +6,7 @@
 #include <stddef.h>
 #include <stdint.h>
 #include <stdbool.h>
+#include <string>
 
 #ifdef __GNUC__
 #    define WHISPER_DEPRECATED(func, hint) func __attribute__((deprecated(hint)))
@@ -75,10 +76,11 @@ extern "C" {
     // The interface also allows for more fine-grained control over the computation, but it requires a deeper
     // understanding of how the model works.
     //
-
+    struct whisper_vocab;
     struct whisper_context;
     struct whisper_state;
     struct whisper_full_params;
+    
 
     typedef int32_t whisper_pos;
     typedef int32_t whisper_token;
@@ -415,6 +417,7 @@ extern "C" {
     WHISPER_API const char * whisper_token_to_str(struct whisper_context * ctx, whisper_token token);
     WHISPER_API const char * whisper_model_type_readable(struct whisper_context * ctx);
 
+    WHISPER_API whisper_token whisper_token_to_id(struct whisper_context * ctx, std::string token_str);
 
     // Special tokens
     WHISPER_API whisper_token whisper_token_eot (struct whisper_context * ctx);
