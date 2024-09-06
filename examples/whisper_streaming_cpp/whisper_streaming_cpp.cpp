@@ -725,7 +725,7 @@ int main(int argc, char ** argv) {
             // transcript_buffer.flush()
             std::vector<std::tuple<double, double, std::string>> o = transcript_buffer.flush();
             // committed.extend(o)
-            committed.insert(committed.end(), committed.begin(), o.end());
+            committed.insert(committed.end(), o.begin(), o.end());
 
             // printing debug info
             std::vector<std::tuple<double, double, std::string>> r_o = transcript_buffer.complete();
