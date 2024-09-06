@@ -343,6 +343,32 @@ void chunk_completed_segment(std::vector<int64_t>& segment_end_time,
     }
 }
 
+// whisper_streaming helper function
+// to_flush() transferring [(beg, end, word), ...] to the transcript string
+std::tuple<double, double, std::string> to_flush(
+    const std::vector<std::tuple<double, double, std::string>>& sents,
+    double offset = 0.0
+) {
+    // Handle empty case
+    if (sents.empty()) {
+        return std::make_tuple(0, 0, "");
+    }
+
+    // Concatenate all the strings from sents with the given separator
+    std::string concatenated;
+    for (size_t i = 0; i < sents.size(); ++i) {
+        if (i > 0) {
+            concatenated += " "; // Add separator between sentences
+        }
+        concatenated += std::get<2>(sents[i]);
+    }
+
+    // Calculate the beginning and end timestamps
+    double beg = offset + std::get<0>(sents[0]);
+    double end = offset + std::get<1>(sents.back());
+
+    return std::make_tuple(beg, end, concatenated);
+}
 
 int main(int argc, char ** argv) {
     whisper_params params;
@@ -700,6 +726,15 @@ int main(int argc, char ** argv) {
             std::vector<std::tuple<double, double, std::string>> o = transcript_buffer.flush();
             // committed.extend(o)
             committed.insert(committed.end(), committed.begin(), o.end());
+
+            // printing debug info
+            std::vector<std::tuple<double, double, std::string>> r_o = transcript_buffer.complete();
+            std::tuple<double, double, std::string> completed = to_flush(o, buffer_time_offset);
+            std::tuple<double, double, std::string> the_rest = to_flush(r_o, buffer_time_offset);
+            std::string complete_transcript = std::get<2>(completed);
+            std::string incomplete_transcript = std::get<2>(the_rest);
+            printf("COMPLETE NOW: %s\n", complete_transcript.c_str());
+            printf("INCOMPLETE: %s\n", incomplete_transcript.c_str());
              
             // whisper_streaming audio_buffer management
             int64_t s = 15; // tentative buffer_trimming_sec set to be 15s
