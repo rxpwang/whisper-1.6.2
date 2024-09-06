@@ -155,7 +155,11 @@ void get_audio_chunk(const std::vector<float> &pcmf32_all, std::vector<float> &p
         num_samples = pcmf32_all.size() - pcmf32_index;
     }
     printf("Get new chunk of audio start from %lld and end with %lld.\n", pcmf32_index_sample, pcmf32_index_sample + num_samples);
-    pcmf32_new.insert(pcmf32_new.end(), pcmf32_all.begin() + pcmf32_index_sample, pcmf32_all.begin() + pcmf32_index_sample + num_samples);
+    // there is no stopping mechanism for now, so the program will only terminate when it reaches the end of the audio
+    // with a segfault (access out-of-bound memory)
+    pcmf32_new.insert(pcmf32_new.end(), pcmf32_all.begin() + pcmf32_index_sample,
+                      pcmf32_index_sample + num_samples >= pcmf32_all.size()?
+                      pcmf32_all.end(): pcmf32_all.begin()+pcmf32_index_sample+num_samples);
     //pcmf32_index += num_samples;
 }
 
