@@ -146,7 +146,7 @@ void whisper_print_usage(int /*argc*/, char ** argv, const whisper_params & para
 
 // get audio chunk from the full audio read from the file.
 // need to initialize the index as pcmf32_index = 0 to make sure it start from the very beginning.
-void get_audio_chunk(const std::vector<float> &pcmf32_all, std::vector<float> &pcmf32_new, int64_t pcmf32_index, int step_ms, int sample_rate) {
+bool get_audio_chunk(const std::vector<float> &pcmf32_all, std::vector<float> &pcmf32_new, int64_t pcmf32_index, int step_ms, int sample_rate) {
     int64_t pcmf32_index_sample = (pcmf32_index * sample_rate) / 1000;
     int num_samples = (step_ms * sample_rate) / 1000;
     pcmf32_new.clear();
@@ -157,10 +157,15 @@ void get_audio_chunk(const std::vector<float> &pcmf32_all, std::vector<float> &p
     printf("Get new chunk of audio start from %lld and end with %lld.\n", pcmf32_index_sample, pcmf32_index_sample + num_samples);
     // there is no stopping mechanism for now, so the program will only terminate when it reaches the end of the audio
     // with a segfault (access out-of-bound memory)
-    pcmf32_new.insert(pcmf32_new.end(), pcmf32_all.begin() + pcmf32_index_sample,
-                      pcmf32_index_sample + num_samples >= pcmf32_all.size()?
-                      pcmf32_all.end(): pcmf32_all.begin()+pcmf32_index_sample+num_samples);
-    //pcmf32_index += num_samples;
+    bool has_more_audio = true;
+    if (pcmf32_index_sample + num_samples >= pcmf32_all.size()) {
+        has_more_audio = false;
+        pcmf32_new.insert(pcmf32_new.end(), pcmf32_all.begin()+pcmf32_index_sample, pcmf32_all.end());
+    } else {
+        pcmf32_new.insert(pcmf32_new.end(), pcmf32_all.begin()+pcmf32_index_sample,
+                                            pcmf32_all.begin()+pcmf32_index_sample+num_samples);
+    }
+    return has_more_audio;
 }
 
 void precise_sleep(double seconds) {
@@ -627,7 +632,7 @@ int main(int argc, char ** argv) {
             }
             // get the ingested data so far
             pcmf32_index_end = ggml_time_us() / 1000.0 - start;
-            get_audio_chunk(pcmf32_all, pcmf32_new, pcmf32_index, pcmf32_index_end - pcmf32_index, WHISPER_SAMPLE_RATE);
+            is_running = get_audio_chunk(pcmf32_all, pcmf32_new, pcmf32_index, pcmf32_index_end - pcmf32_index, WHISPER_SAMPLE_RATE);
             // update the start point for next audio segment
             pcmf32_index = pcmf32_index_end;
 
