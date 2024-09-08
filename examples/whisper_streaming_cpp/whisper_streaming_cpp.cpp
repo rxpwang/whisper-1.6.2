@@ -331,7 +331,8 @@ std::vector<int64_t> get_end_time_of_res(struct whisper_context* ctx) {
 // 
 void chunk_completed_segment(std::vector<int64_t>& segment_end_time, 
                              std::vector<std::tuple<double, double, std::string>>& commited, 
-                             std::vector<float>& audio_buffer, 
+                             std::vector<float>& audio_buffer,
+                             HypothesisBuffer &transcript_buffer,
                              double& buffer_time_offset) {
     if (commited.empty()) return;
 
@@ -350,8 +351,7 @@ void chunk_completed_segment(std::vector<int64_t>& segment_end_time,
             //std::cout << "--- segment chunked at " << e << std::endl;
             fprintf(stderr, "%s: segement chunked at %f\n", __func__, e);
             // Assuming you have a mechanism to manage transcript_buffer
-            // transcript_buffer.pop_committed(e); // Add your logic for transcript management
-
+            transcript_buffer.pop_committed(e); // Add your logic for transcript management
             double cut_seconds = e - buffer_time_offset;
             audio_buffer.erase(audio_buffer.begin(), audio_buffer.begin() + static_cast<int>(cut_seconds * WHISPER_SAMPLE_RATE));
             buffer_time_offset = e;
@@ -765,7 +765,7 @@ int main(int argc, char ** argv) {
             std::vector<int64_t> segment_end_time = get_end_time_of_res(ctx);
 
             if (pcmf32_audio_buffer.size() > (s * WHISPER_SAMPLE_RATE)) {
-                chunk_completed_segment(segment_end_time, committed, pcmf32_audio_buffer, buffer_time_offset);
+                chunk_completed_segment(segment_end_time, committed, pcmf32_audio_buffer, transcript_buffer, buffer_time_offset);
             }
 
 
