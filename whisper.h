@@ -440,6 +440,8 @@ extern "C" {
     // Print system information
     WHISPER_API const char * whisper_print_system_info(void);
 
+    WHISPER_API void print_whisper_full_params(const struct whisper_full_params* params);
+
     ////////////////////////////////////////////////////////////////////////////
 
     // Available sampling strategies

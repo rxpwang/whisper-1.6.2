@@ -7323,14 +7323,14 @@ static void whisper_exp_compute_token_level_timestamps_dtw(
     }
 
     // Print DTW timestamps
-    for (size_t i = i_segment; i < i_segment + n_segments; ++i) {
+    /* for (size_t i = i_segment; i < i_segment + n_segments; ++i) {
         auto & segment = state->result_all[i];
         for (auto &t: segment.tokens) {
             const char * tok = whisper_token_to_str(ctx, t.id);
             fprintf(stderr, "|%s|(%.2f) (%.2f) (%.2f)", tok, (float)t.t_dtw/100, t.t0, t.t1);
         }
         fprintf(stderr, "\n");
-    }
+    } */
 
     ggml_free(gctx);
 }
@@ -7363,4 +7363,54 @@ static void whisper_log_callback_default(ggml_log_level level, const char * text
     (void) user_data;
     fputs(text, stderr);
     fflush(stderr);
+}
+
+
+void print_whisper_full_params(const struct whisper_full_params* params) {
+    printf("whisper_full_params:\n");
+    printf("  strategy: %d\n", params->strategy);
+    printf("  n_threads: %d\n", params->n_threads);
+    printf("  n_max_text_ctx: %d\n", params->n_max_text_ctx);
+    printf("  offset_ms: %d\n", params->offset_ms);
+    printf("  duration_ms: %d\n", params->duration_ms);
+    printf("  translate: %s\n", params->translate ? "true" : "false");
+    printf("  no_context: %s\n", params->no_context ? "true" : "false");
+    printf("  no_timestamps: %s\n", params->no_timestamps ? "true" : "false");
+    printf("  single_segment: %s\n", params->single_segment ? "true" : "false");
+    printf("  print_special: %s\n", params->print_special ? "true" : "false");
+    printf("  print_progress: %s\n", params->print_progress ? "true" : "false");
+    printf("  print_realtime: %s\n", params->print_realtime ? "true" : "false");
+    printf("  print_timestamps: %s\n", params->print_timestamps ? "true" : "false");
+    printf("  token_timestamps: %s\n", params->token_timestamps ? "true" : "false");
+    printf("  thold_pt: %f\n", params->thold_pt);
+    printf("  thold_ptsum: %f\n", params->thold_ptsum);
+    printf("  max_len: %d\n", params->max_len);
+    printf("  split_on_word: %s\n", params->split_on_word ? "true" : "false");
+    printf("  max_tokens: %d\n", params->max_tokens);
+    printf("  speed_up: %s\n", params->speed_up ? "true" : "false");
+    printf("  debug_mode: %s\n", params->debug_mode ? "true" : "false");
+    printf("  audio_ctx: %d\n", params->audio_ctx);
+    printf("  tdrz_enable: %s\n", params->tdrz_enable ? "true" : "false");
+    printf("  suppress_regex: %s\n", params->suppress_regex ? params->suppress_regex : "NULL");
+    printf("  initial_prompt: %s\n", params->initial_prompt ? params->initial_prompt : "NULL");
+    printf("  prompt_tokens: %p\n", (void*)params->prompt_tokens);
+    printf("  prompt_n_tokens: %d\n", params->prompt_n_tokens);
+    printf("  language: %s\n", params->language ? params->language : "NULL");
+    printf("  detect_language: %s\n", params->detect_language ? "true" : "false");
+    printf("  suppress_blank: %s\n", params->suppress_blank ? "true" : "false");
+    printf("  suppress_non_speech_tokens: %s\n", params->suppress_non_speech_tokens ? "true" : "false");
+    printf("  temperature: %f\n", params->temperature);
+    printf("  max_initial_ts: %f\n", params->max_initial_ts);
+    printf("  length_penalty: %f\n", params->length_penalty);
+    printf("  temperature_inc: %f\n", params->temperature_inc);
+    printf("  entropy_thold: %f\n", params->entropy_thold);
+    printf("  logprob_thold: %f\n", params->logprob_thold);
+    printf("  no_speech_thold: %f\n", params->no_speech_thold);
+    printf("  greedy.best_of: %d\n", params->greedy.best_of);
+    printf("  beam_search.beam_size: %d\n", params->beam_search.beam_size);
+    printf("  beam_search.patience: %f\n", params->beam_search.patience);
+    printf("  grammar_rules: %p\n", (void*)params->grammar_rules);
+    printf("  n_grammar_rules: %zu\n", params->n_grammar_rules);
+    printf("  i_start_rule: %zu\n", params->i_start_rule);
+    printf("  grammar_penalty: %f\n", params->grammar_penalty);
 }

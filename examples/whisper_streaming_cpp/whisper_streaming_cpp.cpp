@@ -207,6 +207,19 @@ std::vector<float> readCSVToVector(const std::string& filename) {
     return data;
 }
 
+void print_tsw(const std::vector<std::tuple<double, double, std::string>>& committed) {
+    for (const auto& entry : committed) {
+        double start_time, end_time;
+        std::string transcript;
+        std::tie(start_time, end_time, transcript) = entry;
+
+        std::cout << "Start Time: " << start_time 
+                  << ", End Time: " << end_time 
+                  << ", Transcript: " << transcript 
+                  << std::endl;
+    }
+}
+
 std::vector<std::tuple<double, double, std::string>> output_word_level_timestamp(
                 struct whisper_context * ctx,
                 const whisper_params & params,
@@ -321,11 +334,11 @@ void chunk_completed_segment(std::vector<int64_t>& segment_end_time,
     double t = std::get<1>(commited.back());
 
     if (ends.size() > 1) {
-        double e = ends[ends.size() - 2] + buffer_time_offset;
+        double e = ends[ends.size() - 2] / 100.0 + buffer_time_offset;
         
         while (ends.size() > 2 && e > t) {
             ends.pop_back();
-            e = ends[ends.size() - 2] + buffer_time_offset;
+            e = ends[ends.size() - 2] / 100.0 + buffer_time_offset;
         }
 
         if (e <= t) {
@@ -676,7 +689,7 @@ int main(int argc, char ** argv) {
             wparams.print_realtime   = false;
             wparams.print_timestamps = !params.no_timestamps;
             wparams.translate        = params.translate;
-            wparams.single_segment   = !use_vad;
+            wparams.single_segment   = false;
             wparams.max_tokens       = params.max_tokens;
             wparams.language         = params.language.c_str();
             wparams.n_threads        = params.n_threads;
@@ -710,7 +723,7 @@ int main(int argc, char ** argv) {
             }
 
             printf("\n");
-            printf("Start new round of inference, data length %ld\n", pcmf32.size());
+            printf("Start new round of inference, data length %ld, buffer offset %f.\n", pcmf32.size(), buffer_time_offset);
 
             // whisper_streaming asr.transcribe() in an iter
             if (whisper_full(ctx, wparams, pcmf32.data(), pcmf32.size()) != 0) {
