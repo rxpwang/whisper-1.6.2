@@ -249,7 +249,7 @@ std::vector<std::tuple<double, double, std::string>> output_word_level_timestamp
                 } else {
                     fprintf(stdout, "token timestamps are -1.\n");
                 } */
-                fprintf(stdout, "Begin time: %.2f, End time: %.2f, Word: %s\n", time_start, time_end, word_tmp);
+                //fprintf(stdout, "Begin time: %.2f, End time: %.2f, Word: %s\n", time_start, time_end, word_tmp);
                 records.push_back(std::make_tuple(time_start, time_end, word_tmp));
             }
         }
@@ -744,7 +744,7 @@ int main(int argc, char ** argv) {
             // whisper_streaming transcript buffer management
             // transcript_buffer.insert()
             transcript_buffer.insert(tsw, buffer_time_offset);
-            transcript_buffer.print_info();
+            //transcript_buffer.print_info();
             // transcript_buffer.flush()
             std::vector<std::tuple<double, double, std::string>> o = transcript_buffer.flush();
             // committed.extend(o)
@@ -752,6 +752,9 @@ int main(int argc, char ** argv) {
 
             // printing debug info
             std::vector<std::tuple<double, double, std::string>> r_o = transcript_buffer.complete();
+            if (is_running == false) {
+                committed.insert(committed.end(), r_o.begin(), r_o.end());
+            }
             std::tuple<double, double, std::string> completed = to_flush(o, buffer_time_offset);
             std::tuple<double, double, std::string> the_rest = to_flush(r_o, buffer_time_offset);
             std::string complete_transcript = std::get<2>(completed);
@@ -870,7 +873,7 @@ int main(int argc, char ** argv) {
     }
 
     //audio.pause();
-
+    print_tsw(committed);
     whisper_print_timings(ctx);
     whisper_free(ctx);
 
