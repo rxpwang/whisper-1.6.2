@@ -42,6 +42,13 @@ class HypothesisBuffer {
             }
         }
 
+        static char toLowercase(char c) {
+            if (c >= 'A' && c <= 'Z') {
+                return c + ('a' - 'A');
+            }
+            return c;
+        }
+
         void insert(std::vector<std::tuple<double, double, std::string>>& new_, double offset) {
             std::cout << "----- buffer.insert begin -----" << std::endl;
             // add the offset to the new word list
@@ -63,6 +70,7 @@ class HypothesisBuffer {
                 double a, b;
                 std::string t;
                 std::tie(a, b, t) = self_new[0];
+                fprintf(stderr, "%s: new start time: %f, last committed start time: %f \n", __func__, a, self_last_committed_time);
                 if (std::abs(a - self_last_committed_time) < 1) {
                     if (!self_committed_in_buffer.empty()) {
                         size_t cn = self_committed_in_buffer.size();
@@ -86,19 +94,22 @@ class HypothesisBuffer {
                             }
 
                             std::string c = oss.str();
-
+                            
                             // get tail
                             extracted.clear();
                             oss.clear();
+
+                            std::ostringstream oss_new;
                             for (size_t j=1; j<=i; j++) {
                                 if (j!=1) {
-                                    oss << " ";
+                                    oss_new << " ";
                                 }
-                                oss << std::get<2>(self_new[j-1]);
+                                oss_new << std::get<2>(self_new[j-1]);
                             }
 
-                            std::string tail = oss.str();
-
+                            std::string tail = oss_new.str();
+                            fprintf(stderr, "%s: committed buffer end: %s\n", __func__, c.c_str());
+                            fprintf(stderr, "%s: self_new beginning: %s\n", __func__, tail.c_str());
                             // compare and remove
                             if (c == tail) {
                                 std::vector<std::string> words = {};
@@ -109,14 +120,15 @@ class HypothesisBuffer {
                                     ss << a << " " << b << " " << t;
                                     words.push_back(ss.str());
                                 }
-
-                                oss.clear();
+                                std::ostringstream oss_word;
                                 for (size_t j=0; j<=words.size(); j++) {
                                     if (j!=0) {
-                                        oss << " ";
+                                        oss_word << " ";
                                     }
-                                    oss << words[j];
+                                    oss_word << words[j];
                                 }
+                                std::string ngram_removed_word = oss_word.str();
+                                fprintf(stderr, "%s: Ngram finegrained new trim applied, the removed words: %s\n", __func__, ngram_removed_word.c_str());
                                 break;
                             }
                         }
@@ -131,14 +143,17 @@ class HypothesisBuffer {
             std::cout << "----- buffer.flush begin -----" << std::endl;
             std::vector<std::tuple<double, double, std::string>> commit = {};
             double na, nb;
-            std::string nt;
+            std::string nt; // hold new token
+            std::string bt; // hold buffer token
             while (!self_new.empty()) {
                 std::tie(na, nb, nt) = self_new[0];
                 if (self_buffer.empty()) {
                     break;
                 }
-
-                if (nt == std::get<2>(self_buffer[0])) {
+                bt = std::get<2>(self_buffer[0]);
+                std::transform(nt.begin(), nt.end(), nt.begin(), toLowercase);
+                std::transform(bt.begin(), bt.end(), bt.begin(), toLowercase);
+                if (nt == bt) {
                     commit.emplace_back(na, nb, nt);
                     self_last_committed_word = nt;
                     self_last_committed_time = nb;

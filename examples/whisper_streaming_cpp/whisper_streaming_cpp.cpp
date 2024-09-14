@@ -743,7 +743,7 @@ int main(int argc, char ** argv) {
             // whisper_streaming transcript buffer management
             // transcript_buffer.insert()
             transcript_buffer.insert(tsw, buffer_time_offset);
-            //transcript_buffer.print_info();
+            transcript_buffer.print_info();
             // transcript_buffer.flush()
             std::vector<std::tuple<double, double, std::string>> o = transcript_buffer.flush();
             // committed.extend(o)
