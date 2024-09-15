@@ -51,6 +51,18 @@ class HypothesisBuffer {
 
         void insert(std::vector<std::tuple<double, double, std::string>>& new_, double offset) {
             std::cout << "----- buffer.insert begin -----" << std::endl;
+            // remove special tokens in the new tokens
+            new_.erase(std::remove_if(new_.begin(), new_.end(), [](const std::tuple<double, double, std::string>& t) {
+                const std::string& s = std::get<2>(t);  // Access the string part of the tuple
+                return s.find('[') != std::string::npos && s.find(']') != std::string::npos;
+            }), new_.end());
+
+            for (auto& tuple : new_) {
+                std::string tmp_str = std::get<2>(tuple);
+                std::transform(tmp_str.begin(), tmp_str.end(), tmp_str.begin(), toLowercase);
+                std::get<2>(tuple) = tmp_str;
+            }
+
             // add the offset to the new word list
             std::transform(new_.begin(), new_.end(), new_.begin(),
                 [offset](const std::tuple<double, double, std::string>& t) {
@@ -151,8 +163,8 @@ class HypothesisBuffer {
                     break;
                 }
                 bt = std::get<2>(self_buffer[0]);
-                std::transform(nt.begin(), nt.end(), nt.begin(), toLowercase);
-                std::transform(bt.begin(), bt.end(), bt.begin(), toLowercase);
+                //std::transform(nt.begin(), nt.end(), nt.begin(), toLowercase);
+                //std::transform(bt.begin(), bt.end(), bt.begin(), toLowercase);
                 if (nt == bt) {
                     commit.emplace_back(na, nb, nt);
                     self_last_committed_word = nt;
