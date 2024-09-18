@@ -5,6 +5,7 @@
 #include <tuple>
 #include <algorithm>
 #include <sstream>
+#include <unordered_set>
 
 class HypothesisBuffer {
     public:
@@ -48,6 +49,34 @@ class HypothesisBuffer {
             }
             return c;
         }
+        // Function to remove punctuation tokens
+        // Function to check if a token is punctuation
+        bool isPunctuationToken(const std::string& token) {
+            const std::unordered_set<char> punctuation = {'.', ',', '!', '?', ';', ':', '-', '(', ')', '[', ']', '{', '}', '\'', '\"'};
+            
+            if (token.empty()) return false;
+
+            // Check if all characters in the token are punctuation
+            for (char c : token) {
+                if (punctuation.find(c) == punctuation.end()) {
+                    return false;  // If any character is not punctuation, return false
+                }
+            }
+
+            return true;
+        }
+
+        // Function to remove punctuation tokens
+        void removePunctuationTokens(std::vector<std::tuple<double, double, std::string>>& tokens) {
+            auto it = tokens.begin();
+            while (it != tokens.end()) {
+                if (isPunctuationToken(std::get<2>(*it))) {
+                    it = tokens.erase(it);  // Erase the token and get the new iterator
+                } else {
+                    ++it;  // Move to the next element
+                }
+            }
+        }
 
         void insert(std::vector<std::tuple<double, double, std::string>>& new_, double offset) {
             std::cout << "----- buffer.insert begin -----" << std::endl;
@@ -56,6 +85,9 @@ class HypothesisBuffer {
                 const std::string& s = std::get<2>(t);  // Access the string part of the tuple
                 return s.find('[') != std::string::npos && s.find(']') != std::string::npos;
             }), new_.end());
+
+            // remove punctuation tokens
+            removePunctuationTokens(new_);
 
             for (auto& tuple : new_) {
                 std::string tmp_str = std::get<2>(tuple);
