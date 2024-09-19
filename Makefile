@@ -480,8 +480,8 @@ server: examples/server/server.cpp $(SRC_COMMON) $(WHISPER_OBJ)
 stream: examples/stream/stream.cpp $(SRC_COMMON) $(SRC_COMMON_SDL) $(WHISPER_OBJ)
 	$(CXX) $(CXXFLAGS) examples/stream/stream.cpp $(SRC_COMMON) $(SRC_COMMON_SDL) $(WHISPER_OBJ) -o stream $(CC_SDL) $(LDFLAGS)
 
-stream_simulation: examples/stream_simulation/stream_simulation.cpp $(SRC_COMMON) $(SRC_COMMON_SDL) $(WHISPER_OBJ)
-	$(CXX) $(CXXFLAGS) examples/stream_simulation/stream_simulation.cpp $(SRC_COMMON) $(SRC_COMMON_SDL) $(WHISPER_OBJ) -o stream_simulation $(CC_SDL) $(LDFLAGS)
+stream_simulation: examples/stream_simulation/stream_simulation.cpp $(SRC_COMMON) $(WHISPER_OBJ)
+	$(CXX) $(CXXFLAGS) examples/stream_simulation/stream_simulation.cpp $(SRC_COMMON) $(WHISPER_OBJ) -o stream_simulation $(LDFLAGS)
 
 whisper_streaming_cpp: examples/whisper_streaming_cpp/whisper_streaming_cpp.cpp $(SRC_COMMON) $(WHISPER_OBJ)
 	$(CXX) $(CXXFLAGS) examples/whisper_streaming_cpp/whisper_streaming_cpp.cpp $(SRC_COMMON) $(WHISPER_OBJ) -o whisper_streaming_cpp $(LDFLAGS)
