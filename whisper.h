@@ -507,6 +507,7 @@ extern "C" {
         bool speed_up;          // speed-up the audio by 2x using Phase Vocoder
         bool debug_mode;        // enable debug_mode provides extra info (eg. Dump log_mel)
         int  audio_ctx;         // overwrite the audio context size (0 = use default)
+        int max_round_decode;   // overwrite the max decoding round n_max
 
         // [EXPERIMENTAL] [TDRZ] tinydiarize
         bool tdrz_enable;       // enable tinydiarize speaker turn detection

@@ -28,6 +28,7 @@ struct whisper_params {
     int32_t audio_ctx  = 0;
     int32_t best_of       = whisper_full_default_params(WHISPER_SAMPLING_GREEDY).greedy.best_of;
     int32_t beam_size     = whisper_full_default_params(WHISPER_SAMPLING_BEAM_SEARCH).beam_search.beam_size;
+    int32_t max_round_decode = 9999;
 
     float vad_thold    = 0.6f;
     float freq_thold   = 100.0f;
@@ -83,6 +84,7 @@ bool whisper_params_parse(int argc, char ** argv, whisper_params & params) {
         else if (arg == "-bo"   || arg == "--best-of")         { params.best_of         = std::stoi(argv[++i]); }
         else if (arg == "-bs"   || arg == "--beam-size")       { params.beam_size       = std::stoi(argv[++i]); }
         else if (arg == "-ac"   || arg == "--audio-ctx")     { params.audio_ctx     = std::stoi(argv[++i]); }
+        else if (arg == "-mrd" || arg == "--max-round-decode")  { params.max_round_decode = std::stoi(argv[++i]); }
         else if (arg == "-vth"  || arg == "--vad-thold")     { params.vad_thold     = std::stof(argv[++i]); }
         else if (arg == "-fth"  || arg == "--freq-thold")    { params.freq_thold    = std::stof(argv[++i]); }
         else if (arg == "-su"   || arg == "--speed-up")      { params.speed_up      = true; }
@@ -123,6 +125,7 @@ void whisper_print_usage(int /*argc*/, char ** argv, const whisper_params & para
     fprintf(stderr, "            --keep N        [%-7d] audio to keep from previous step in ms\n",         params.keep_ms);
     fprintf(stderr, "  -c ID,    --capture ID    [%-7d] capture device ID\n",                              params.capture_id);
     fprintf(stderr, "  -mt N,    --max-tokens N  [%-7d] maximum number of tokens per audio chunk\n",       params.max_tokens);
+    fprintf(stderr, "  -mrd N,    --max-round-decode N  [%-7d] maximum round of decoding per audio chunk\n",       params.max_round_decode);
     fprintf(stderr, "  -ac N,    --audio-ctx N   [%-7d] audio context size (0 - all)\n",                   params.audio_ctx);
     fprintf(stderr, "  -vth N,   --vad-thold N   [%-7.2f] voice activity detection threshold\n",           params.vad_thold);
     fprintf(stderr, "  -fth N,   --freq-thold N  [%-7.2f] high-pass frequency cutoff\n",                   params.freq_thold);
@@ -702,6 +705,8 @@ int main(int argc, char ** argv) {
 
 
             wparams.audio_ctx        = params.audio_ctx;
+            int max_round_decode_tmp = int(float(pcmf32.size()) / WHISPER_SAMPLE_RATE / (params.step_ms / 1000.0)  * params.max_round_decode);
+            wparams.max_round_decode = max_round_decode_tmp;
             wparams.speed_up         = params.speed_up;
 
             wparams.tdrz_enable      = params.tinydiarize; // [TDRZ]
@@ -739,7 +744,7 @@ int main(int argc, char ** argv) {
 
             // whisper_streaming asr.ts_words in an iter, the return value is the tsw with format [(beg,end,"word1"), ...]
             std::vector<std::tuple<double, double, std::string>> tsw = output_word_level_timestamp(ctx, params, true);
-
+            printf("New round of transcript length: %d\n", tsw.size());
             // whisper_streaming transcript buffer management
             // transcript_buffer.insert()
             transcript_buffer.insert(tsw, buffer_time_offset);

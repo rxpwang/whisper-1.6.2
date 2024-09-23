@@ -4677,6 +4677,7 @@ struct whisper_full_params whisper_full_default_params(enum whisper_sampling_str
         /*.speed_up          =*/ false,
         /*.debug_mode        =*/ false,
         /*.audio_ctx         =*/ 0,
+        /*.max_round_decode  =*/ 9999,
 
         /*.tdrz_enable       =*/ false,
 
@@ -5686,7 +5687,11 @@ int whisper_full_with_state(
                 }
             }
 
-            for (int i = 0, n_max = whisper_n_text_ctx(ctx)/2 - 4; i < n_max; ++i) {
+            int n_max = whisper_n_text_ctx(ctx)/2 - 4;
+            n_max = (n_max < params.max_round_decode) ? n_max : params.max_round_decode;
+            WHISPER_LOG_INFO("%s: max decode round: %d\n", __func__, n_max);
+            //for (int i = 0, n_max = whisper_n_text_ctx(ctx)/2 - 4; i < n_max; ++i) {
+            for (int i = 0; i < n_max; ++i) {
                 const int64_t t_start_sample_us = ggml_time_us();
 
                 if (params.strategy == whisper_sampling_strategy::WHISPER_SAMPLING_BEAM_SEARCH) {
@@ -5904,7 +5909,7 @@ int whisper_full_with_state(
                     // sometimes, the decoding can get stuck in a repetition loop
                     // this is an attempt to mitigate such cases - we flag the decoding as failed and use a fallback strategy
                     if (i == n_max - 1 && (result_len == 0 || seek_delta < 100*WHISPER_CHUNK_SIZE/2)) {
-                        WHISPER_LOG_DEBUG("%s: decoder %d: failed due to repetition loop\n", __func__, j);
+                        WHISPER_LOG_INFO("%s: decoder %d: failed due to repetition loop\n", __func__, j);
                         failed = true;
                         continue;
                     }

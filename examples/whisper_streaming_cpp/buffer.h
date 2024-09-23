@@ -89,6 +89,7 @@ class HypothesisBuffer {
             // remove punctuation tokens
             removePunctuationTokens(new_);
 
+            // change all the tokens string to lowercase
             for (auto& tuple : new_) {
                 std::string tmp_str = std::get<2>(tuple);
                 std::transform(tmp_str.begin(), tmp_str.end(), tmp_str.begin(), toLowercase);
