@@ -600,6 +600,20 @@ extern "C" {
                            const float * samples,
                                    int   n_samples);
 
+    // Duplication for whisper_streaming
+    WHISPER_API int whisper_full_for_whisper_streaming(
+                struct whisper_context * ctx,
+            struct whisper_full_params   params,
+                           const float * samples,
+                                   int   n_samples);
+
+    WHISPER_API int whisper_full_with_state_for_whisper_streaming(
+                struct whisper_context * ctx,
+                  struct whisper_state * state,
+            struct whisper_full_params   params,
+                           const float * samples,
+                                   int   n_samples);
+
     // Split the input audio in chunks and process each chunk separately using whisper_full_with_state()
     // Result is stored in the default state of the context
     // Not thread safe if executed in parallel on the same context.
