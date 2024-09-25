@@ -2,11 +2,24 @@
     "tasks": [
         {
             "type": "shell",
+            "label": "remove old artifact",
+            "command": "rm",
+            "args": ["-rf", "whisper.o", "whisper_streaming_cpp_optimized"]
+        },
+        {
+            "type": "shell",
+            "label": "compile with debug",
+            "command": "sed",
+            "args": ["s/-O3 -DNDEBUG -std=c11   -fPIC/-O0 -DDEBUG -g -std=c11   -fPIC/g", "./Makefile"]
+        },
+        {
+            "type": "shell",
             "label": "make",
             "command": "/usr/bin/make",
             "args": ["whisper_streaming_cpp_optimized", "-j8"],
             "problemMatcher": [],
-        }
+            "dependsOn": ["remove old artifact", "compile with debug"]
+        },
     ],
     "version": "2.0.0"
 }

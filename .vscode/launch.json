@@ -1,7 +1,20 @@
 {
     "configurations": [
         {
-            "name": "whisper_streaming_cpp",
+            "name": "Apple Silicon Launch",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceRoot}/whisper_streaming_cpp_optimized",
+            "args": ["-m", "models/ggml-medium.bin", "samples/bernie4min.wav", "-kc", "-dtw", "medium"],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}",
+            "environment": [],
+            "externalConsole": false,
+            "MIMode": "lldb",
+            "preLaunchTask": "make",
+        },
+        {
+            "name": "Linux Launcher",
             "type": "cppdbg",
             "request": "launch",
             "program": "${workspaceRoot}/whisper_streaming_cpp_optimized",
@@ -9,27 +22,13 @@
             "stopAtEntry": true,
             "cwd": "${workspaceFolder}",
             "environment": [],
-            "MIMode": "gdb",
-            "setupCommands": [
-                {
-                "description": "Enable pretty-printing for gdb",
-                "text": "-enable-pretty-printing",
-                "ignoreFailures": true
-                }
-            ],
-            "console": "integratedTerminal",
-            "miDebuggerPath": "/usr/bin/gdb",
-            "isDefault": true,
+            "miDebuggerPath": "/usr/bin/lldb",
             "preLaunchTask": "make",
             "logging": {
                 "trace": false,
                 "traceResponse": false,
                 "engineLogging": false 
             },
-            "debugOptions": [
-                "StopOnEntry",
-                "ShowDisassembly=Never"
-            ]       
         },
         
     ],
