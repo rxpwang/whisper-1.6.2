@@ -49,8 +49,13 @@ endif
 # Compile flags
 #
 
-CFLAGS   = -I.              -O3 -DNDEBUG -std=c11   -fPIC
-CXXFLAGS = -I. -I./examples -O3 -DNDEBUG -std=c++11 -fPIC
+# no debug and highest optimization
+# CFLAGS   = -I.              -O3 -DNDEBUG -std=c11   -fPIC
+# CXXFLAGS = -I. -I./examples -O3 -DNDEBUG -std=c++11 -fPIC
+
+# debug config
+CFLAGS   = -I.              -O0 -DDEBUG -g -std=c11   -fPIC
+CXXFLAGS = -I. -I./examples -O0 -DDEBUG -g -std=c++11 -fPIC
 LDFLAGS  =
 
 ifdef MACOSX_DEPLOYMENT_TARGET
