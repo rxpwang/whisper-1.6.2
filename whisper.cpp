@@ -7774,7 +7774,8 @@ int whisper_full_with_state_for_whisper_streaming(
             int n_max = whisper_n_text_ctx(ctx)/2 - 4;
             n_max = (n_max < params.max_round_decode) ? n_max : params.max_round_decode;
             WHISPER_LOG_INFO("%s: max decode round: %d\n", __func__, n_max);
-            //for (int i = 0, n_max = whisper_n_text_ctx(ctx)/2 - 4; i < n_max; ++i) {
+            
+            // each loop is one decoding round. each round results in one new token in each decoder
             for (int i = 0; i < n_max; ++i) {
                 const int64_t t_start_sample_us = ggml_time_us();
 
@@ -7784,7 +7785,7 @@ int whisper_full_with_state_for_whisper_streaming(
                     }
                 }
 
-                // sampling
+                // sampling: for each decoder, getting the next token it predicts
                 // TODO: avoid memory allocations, optimize, avoid threads?
                 {
                     std::atomic<int> j_cur(0);
@@ -8100,6 +8101,8 @@ int whisper_full_with_state_for_whisper_streaming(
                     state->t_sample_us += ggml_time_us() - t_start_sample_us;
                 }
             }
+            // end decoding rounds, each decoder now has a sequence of predicted tokens
+
 
             // rank the resulting sequences and select the best one
             {
