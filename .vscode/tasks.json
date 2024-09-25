@@ -1,0 +1,12 @@
+{
+    "tasks": [
+        {
+            "type": "shell",
+            "label": "make",
+            "command": "/usr/bin/make",
+            "args": ["whisper_streaming_cpp_optimized", "-j8"],
+            "problemMatcher": [],
+        }
+    ],
+    "version": "2.0.0"
+}
