@@ -19,10 +19,10 @@
             "request": "launch",
             "program": "${workspaceRoot}/whisper_streaming_cpp_optimized",
             "args": ["-m", "models/ggml-medium.bin", "samples/bernie4min.wav", "-kc", "-dtw", "medium"],
-            "stopAtEntry": true,
+            "stopAtEntry": false,
             "cwd": "${workspaceFolder}",
             "environment": [],
-            "miDebuggerPath": "/usr/bin/lldb",
+            "miDebuggerPath": "/usr/bin/gdb",
             "preLaunchTask": "make",
             "logging": {
                 "trace": false,
