@@ -42,6 +42,7 @@
 #include <random>
 #include <functional>
 #include <codecvt>
+#include <unordered_set>
 
 #if defined(_MSC_VER)
 #pragma warning(disable: 4244 4267) // possible loss of data
@@ -7722,7 +7723,7 @@ int whisper_full_with_state_for_whisper_streaming(
             n_decoders_cur = 1;
             int32_t n_decoders_fallback_flag = 0;
             int32_t i_cur_reference_idx = -1;
-            std::vector<int> punc_list = {0, 1, 6, 7, 8, 11, 12, 13, 25, 26, 30, 58, 60, 90, 92}; // punctuation list for ongoing new token check and skip
+            std::unordered_set<int> PUNCUATION_TOKEN_IDS{0, 1, 6, 7, 8, 11, 12, 13, 25, 26, 30, 58, 60, 90, 92}; // punctuation list for ongoing new token check and skip
             // init prompt and kv cache for the current iteration
             // TODO: do not recompute the prompt if it is the same as previous time
             {
@@ -7920,7 +7921,7 @@ int whisper_full_with_state_for_whisper_streaming(
                                 // case 1: the current token is a special one
                                 (cur_token.id >= ctx->vocab.token_sot) ||
                                 // case 2: the current token is a puncuation
-                                (std::find(punc_list.begin(), punc_list.end(), cur_token.id) != punc_list.end())
+                                (PUNCUATION_TOKEN_IDS.find(cur_token.id) != PUNCUATION_TOKEN_IDS.end())
                             ) {
                                 // then skip all the special tokens and punctuation token
                                 WHISPER_LOG_DEBUG("%s: new token is special token / punctuation, skip for next token.\n", __func__);
