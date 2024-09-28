@@ -7,6 +7,7 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include <string>
+#include <vector>
 
 #ifdef __GNUC__
 #    define WHISPER_DEPRECATED(func, hint) func __attribute__((deprecated(hint)))

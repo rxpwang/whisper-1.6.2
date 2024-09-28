@@ -7904,7 +7904,7 @@ int whisper_full_with_state_for_whisper_streaming(
                                 n_decoders_fallback_flag=1;
                             } else if ((cur_token.id >= ctx->vocab.token_sot) || (std::find(punc_list.begin(), punc_list.end(), cur_token.id) != punc_list.end())) {
                                 // then skip all the special tokens and punctuation token
-                                WHISPER_LOG_DEBUG("%s: new token is special token / punctuation, skip for next token.\n");
+                                WHISPER_LOG_DEBUG("%s: new token is special token / punctuation, skip for next token.\n", __func__);
                             } else if (i_cur_reference_idx == -1) {
                                 // this is for the case we met the first text token in the new transcription, we want to find the match token in the reference. we have this because the reference transcription and the audio sometimes have miss alignment
                                 WHISPER_LOG_DEBUG("%s: Searching for the matched reference token... %d\n", __func__);
