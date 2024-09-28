@@ -7892,21 +7892,44 @@ int whisper_full_with_state_for_whisper_streaming(
 
                         auto & cur = beam_candidates[cur_c++];
                         
-                        // for beam reduce, check if the current new token diverge from the reference transcript
-                        // if it diverge, we need to make the decoding fall back to beam search with beam size 5
+                        /*
+                        for beam reduce, check if the current new token diverge from the reference transcript
+                        if it diverge, we need to make the decoding fall back to beam search with beam size 5
+                        */
+                        
+                        // the decoder number is reduced to 1, needs to check with the reference and determine whether to fallback to 5
                         if ((n_decoders_cur == 1) && (n_decoders != 1)) {
                             auto & cur_token = cur.sequence.tokens.back();
                             std::string cur_token_string = ctx->vocab.id_to_token.at(cur_token.id);
                             std::transform(cur_token_string.begin(), cur_token_string.end(), cur_token_string.begin(), WhisperToLowercase);
-                            if ((reference_transcript_tokens.size() == 0)||((i_cur_reference_idx != -1) && (reference_transcript_tokens.size() < (i_cur_reference_idx + 1)))) {
-                                // first check if the idx already exceed the reference length, this is most of the case for no reference case
+
+                            // for these cases, the reference is no longer usable, and falback is needed
+                            if (
+                                // case 1: the reference transcript doesn't exist, fallback is needed to get the next token
+                                (reference_transcript_tokens.size() == 0) ||
+                                // case 2: we're at i_cur_reference_idx of the reference transcript, and it's also the end of the reference.
+                                // no more reference is available next, need to fallback
+                                ((i_cur_reference_idx != -1) && (reference_transcript_tokens.size() < (i_cur_reference_idx + 1)))
+                            )
+                                {
                                 WHISPER_LOG_DEBUG("%s: No reference transcript yet, just fallback to beam search with beam size 5\n", __func__);
                                 n_decoders_fallback_flag=1;
-                            } else if ((cur_token.id >= ctx->vocab.token_sot) || (std::find(punc_list.begin(), punc_list.end(), cur_token.id) != punc_list.end())) {
+                            }
+                            // for these cases, the current token is non-word, and we're good to decode the next one
+                            else if (
+                                // case 1: the current token is a special one
+                                (cur_token.id >= ctx->vocab.token_sot) ||
+                                // case 2: the current token is a puncuation
+                                (std::find(punc_list.begin(), punc_list.end(), cur_token.id) != punc_list.end())
+                            ) {
                                 // then skip all the special tokens and punctuation token
                                 WHISPER_LOG_DEBUG("%s: new token is special token / punctuation, skip for next token.\n", __func__);
-                            } else if (i_cur_reference_idx == -1) {
-                                // this is for the case we met the first text token in the new transcription, we want to find the match token in the reference. we have this because the reference transcription and the audio sometimes have miss alignment
+                            }
+                            /*
+                            this is for the case we met the first text token in the new transcription, we want to find the match token in the reference.
+                            we have this because the reference transcription and the audio sometimes have miss alignment
+                            */ 
+                            else if (i_cur_reference_idx == -1) {
                                 WHISPER_LOG_DEBUG("%s: Searching for the matched reference token... %d\n", __func__);
                                 int tmp_i;
                                 for (tmp_i = 0; tmp_i < reference_transcript_tokens.size(); tmp_i++) {
@@ -7921,17 +7944,17 @@ int whisper_full_with_state_for_whisper_streaming(
                                         break;
                                     }
                                 }
-                                if (i_cur_reference_idx == -1) {
-                                    // i_cur_reference_idx didn't get updated means that no match found
+                                if (i_cur_reference_idx == -1) { // i_cur_reference_idx didn't get updated means that no match found
                                     WHISPER_LOG_DEBUG("%s: No reference token matched, fallback to beam search with beam size 5.\n", __func__);
                                     n_decoders_fallback_flag = 1;
                                 }
 
                             }
                             else {
+                                std::string cur_reference_token_string = std::get<2>(reference_transcript_tokens[i_cur_reference_idx]);
                                 WHISPER_LOG_DEBUG("%s: Current new token: %s\n", __func__, cur_token_string.c_str());
-                                WHISPER_LOG_DEBUG("%s: Current reference: %s\n", __func__, std::get<2>(reference_transcript_tokens[i_cur_reference_idx]).c_str());
-                                if (cur_token_string != std::get<2>(reference_transcript_tokens[i_cur_reference_idx])) {
+                                WHISPER_LOG_DEBUG("%s: Current reference: %s\n", __func__, cur_reference_token_string.c_str());
+                                if (cur_token_string != cur_reference_token_string) {
                                     WHISPER_LOG_DEBUG("%s: we reach the diverge point of the reference, fall back to beam search with beam size 5\n", __func__);
                                     n_decoders_fallback_flag = 1;
                                 }
@@ -7942,7 +7965,7 @@ int whisper_full_with_state_for_whisper_streaming(
                         // fallback to beam size 5 if needed
                         if ((n_decoders_fallback_flag == 1) && (n_decoders_cur == 1)) {
                             // when the flag is set and the n_decoders_cur has not been updated, we update it to beam size 5
-                            n_decoders_cur = 5;
+                            n_decoders_cur = n_decoders;
                         }
                         // then we follow the prompting stage to copy the decoder stage to other decoders
                         for (int j = 1; j < n_decoders_cur; ++j) {
