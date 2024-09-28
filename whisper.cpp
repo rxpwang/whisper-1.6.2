@@ -7720,6 +7720,7 @@ int whisper_full_with_state_for_whisper_streaming(
 
             // for beam reduce, first set the n_decoders_cur to 1 to only work on first decoder until diverge
             n_decoders_cur = 1;
+            int32_t n_decoders_fallback_flag = 0;
             int32_t i_cur_reference_idx = -1;
             std::vector<int> punc_list = {0, 1, 6, 7, 8, 11, 12, 13, 25, 26, 30, 58, 60, 90, 92}; // punctuation list for ongoing new token check and skip
             // init prompt and kv cache for the current iteration
@@ -7900,6 +7901,7 @@ int whisper_full_with_state_for_whisper_streaming(
                             if ((reference_transcript_tokens.size() == 0)||((i_cur_reference_idx != -1) && (reference_transcript_tokens.size() < (i_cur_reference_idx + 1)))) {
                                 // first check if the idx already exceed the reference length, this is most of the case for no reference case
                                 WHISPER_LOG_DEBUG("%s: No reference transcript yet, just fallback to beam search with beam size 5\n", __func__);
+                                n_decoders_fallback_flag=1;
                             } else if ((cur_token.id >= ctx->vocab.token_sot) || (std::find(punc_list.begin(), punc_list.end(), cur_token.id) != punc_list.end())) {
                                 // then skip all the special tokens and punctuation token
                                 WHISPER_LOG_DEBUG("%s: new token is special token / punctuation, skip for next token.\n");
@@ -7922,6 +7924,7 @@ int whisper_full_with_state_for_whisper_streaming(
                                 if (i_cur_reference_idx == -1) {
                                     // i_cur_reference_idx didn't get updated means that no match found
                                     WHISPER_LOG_DEBUG("%s: No reference token matched, fallback to beam search with beam size 5.\n", __func__);
+                                    n_decoders_fallback_flag = 1;
                                 }
 
                             }
@@ -7930,10 +7933,28 @@ int whisper_full_with_state_for_whisper_streaming(
                                 WHISPER_LOG_DEBUG("%s: Current reference: %s\n", __func__, std::get<2>(reference_transcript_tokens[i_cur_reference_idx]).c_str());
                                 if (cur_token_string != std::get<2>(reference_transcript_tokens[i_cur_reference_idx])) {
                                     WHISPER_LOG_DEBUG("%s: we reach the diverge point of the reference, fall back to beam search with beam size 5\n", __func__);
+                                    n_decoders_fallback_flag = 1;
                                 }
                                 i_cur_reference_idx += 1;
                             }
                         }
+
+                        // fallback to beam size 5 if needed
+                        if ((n_decoders_fallback_flag == 1) && (n_decoders_cur == 1)) {
+                            // when the flag is set and the n_decoders_cur has not been updated, we update it to beam size 5
+                            n_decoders_cur = 5;
+                        }
+                        // then we follow the prompting stage to copy the decoder stage to other decoders
+                        for (int j = 1; j < n_decoders_cur; ++j) {
+                            auto & decoder = state->decoders[j];
+
+                            whisper_kv_cache_seq_cp(state->kv_self, 0, j, -1, -1);
+
+                            memcpy(decoder.probs.data(),    state->decoders[0].probs.data(),    decoder.probs.size()*sizeof(decoder.probs[0]));
+                            memcpy(decoder.logits.data(),   state->decoders[0].logits.data(),   decoder.logits.size()*sizeof(decoder.logits[0]));
+                            memcpy(decoder.logprobs.data(), state->decoders[0].logprobs.data(), decoder.logprobs.size()*sizeof(decoder.logprobs[0]));
+                        }
+
 
                         while (beam_candidates.size() > cur_c && whisper_sequence_tokens_equal(beam_candidates[cur_c].sequence, cur.sequence) && i > 0) {
                             ++cur_c;
