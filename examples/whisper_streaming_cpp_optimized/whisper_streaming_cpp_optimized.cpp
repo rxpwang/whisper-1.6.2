@@ -315,6 +315,29 @@ std::vector<whisper_token> prompt(struct whisper_context* ctx,
     return token_ids;
 }
 
+// whisper_streaming_cpp_optimized function for getting the reference transcription token list roughly
+// the function take all the token after the audio_buffer_offset. basically do the opposite thing with prompt function above
+std::vector<std::tuple<double, double, std::string>> get_reference_transcript_token_list(struct whisper_context* ctx,
+    const std::vector<std::tuple<double, double, std::string>>& committed, 
+    double buffer_time_offset
+    ) 
+{
+    // Initialize k to the last index of the committed vector
+    size_t k = committed.size() > 0 ? committed.size() - 1 : 0;
+
+    // Adjust k based on the buffer_time_offset
+    while (k > 0 && std::get<1>(committed[k-1]) > buffer_time_offset) {
+        k--;
+    }
+
+    // Get the committed part up to k
+    std::vector<std::tuple<double, double, std::string>> p;
+    for (size_t i = k; i < committed.size(); i++) {
+        p.push_back(committed[i]);
+    }
+    return p;
+}
+
 
 // whisper_streaming helper function
 // extract the end time point of each segment and return the vector, for chunk_completed_segment function usage
@@ -734,8 +757,18 @@ int main(int argc, char ** argv) {
             printf("\n");
             printf("Start new round of inference, data length %ld, buffer offset %f.\n", pcmf32.size(), buffer_time_offset);
 
+            // preparing reference for beam reduce
+            // std::vector<std::tuple<double, double, std::string>> reference_transcript_tokens = transcript_buffer.self_committed_in_buffer + transcript_buffer.self_buffer;
+            std::vector<std::tuple<double, double, std::string>> reference_transcript_tokens;
+            //reference_transcript_tokens.reserve(transcript_buffer.self_committed_in_buffer.size() + transcript_buffer.self_buffer.size());
+            //reference_transcript_tokens.insert(reference_transcript_tokens.end(), transcript_buffer.self_committed_in_buffer.begin(), transcript_buffer.self_committed_in_buffer.end());
+            //reference_transcript_tokens.insert(reference_transcript_tokens.end(), transcript_buffer.self_buffer.begin(), transcript_buffer.self_buffer.end());
+            //print_tsw(reference_transcript_tokens);
+            reference_transcript_tokens = get_reference_transcript_token_list(ctx, committed, buffer_time_offset);
+            reference_transcript_tokens.insert(reference_transcript_tokens.end(), transcript_buffer.self_buffer.begin(), transcript_buffer.self_buffer.end());
+
             // whisper_streaming asr.transcribe() in an iter
-            if (whisper_full_for_whisper_streaming(ctx, wparams, pcmf32.data(), pcmf32.size()) != 0) {
+            if (whisper_full_for_whisper_streaming(ctx, wparams, pcmf32.data(), pcmf32.size(), reference_transcript_tokens) != 0) {
                 fprintf(stderr, "%s: failed to process audio\n", argv[0]);
                 return 6;
             }

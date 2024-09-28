@@ -5271,11 +5271,11 @@ static std::vector<whisper_token_data> whisper_sample_token_topk(
     }
 
     std::discrete_distribution<> dist(probs.begin(), probs.end());
-
+    WHISPER_LOG_DEBUG("%s: start of sampling of a specific decoder\n", __func__);
     for (int i = 0; i < k; ++i) {
         const auto id = dist(decoder.rng);
         //printf("XXX %d %d %f %f %f %f\n", id, tid, probs[id], logprobs[id], pt, ptsum);
-
+        WHISPER_LOG_DEBUG("%s: XXX %d %d %f %f %f %f\n", __func__, id, tid, probs[id], logprobs[id], pt, ptsum);
         result.push_back({ id, tid, probs[id], logprobs[id], pt, ptsum, -1, -1, -1, 0.0f, });
 
         if (result[i].id >= vocab.token_beg) {
@@ -7425,7 +7425,10 @@ int whisper_full_with_state_for_whisper_streaming(
           struct whisper_state * state,
     struct whisper_full_params   params,
                    const float * samples,
-                           int   n_samples) {
+                           int   n_samples,
+                   const std::vector<std::tuple<double, double, std::string>> & reference_transcript_tokens) {
+
+    print_token_timestamp_vector(reference_transcript_tokens);
     // clear old results
     auto & result_all = state->result_all;
 
@@ -7715,6 +7718,10 @@ int whisper_full_with_state_for_whisper_streaming(
                 }
             }
 
+            // for beam reduce, first set the n_decoders_cur to 1 to only work on first decoder until diverge
+            n_decoders_cur = 1;
+            int32_t i_cur_reference_idx = -1;
+            std::vector<int> punc_list = {0, 1, 6, 7, 8, 11, 12, 13, 25, 26, 30, 58, 60, 90, 92}; // punctuation list for ongoing new token check and skip
             // init prompt and kv cache for the current iteration
             // TODO: do not recompute the prompt if it is the same as previous time
             {
@@ -7883,6 +7890,50 @@ int whisper_full_with_state_for_whisper_streaming(
                         }
 
                         auto & cur = beam_candidates[cur_c++];
+                        
+                        // for beam reduce, check if the current new token diverge from the reference transcript
+                        // if it diverge, we need to make the decoding fall back to beam search with beam size 5
+                        if ((n_decoders_cur == 1) && (n_decoders != 1)) {
+                            auto & cur_token = cur.sequence.tokens.back();
+                            std::string cur_token_string = ctx->vocab.id_to_token.at(cur_token.id);
+                            std::transform(cur_token_string.begin(), cur_token_string.end(), cur_token_string.begin(), WhisperToLowercase);
+                            if ((reference_transcript_tokens.size() == 0)||((i_cur_reference_idx != -1) && (reference_transcript_tokens.size() < (i_cur_reference_idx + 1)))) {
+                                // first check if the idx already exceed the reference length, this is most of the case for no reference case
+                                WHISPER_LOG_DEBUG("%s: No reference transcript yet, just fallback to beam search with beam size 5\n", __func__);
+                            } else if ((cur_token.id >= ctx->vocab.token_sot) || (std::find(punc_list.begin(), punc_list.end(), cur_token.id) != punc_list.end())) {
+                                // then skip all the special tokens and punctuation token
+                                WHISPER_LOG_DEBUG("%s: new token is special token / punctuation, skip for next token.\n");
+                            } else if (i_cur_reference_idx == -1) {
+                                // this is for the case we met the first text token in the new transcription, we want to find the match token in the reference. we have this because the reference transcription and the audio sometimes have miss alignment
+                                WHISPER_LOG_DEBUG("%s: Searching for the matched reference token... %d\n", __func__);
+                                int tmp_i;
+                                for (tmp_i = 0; tmp_i < reference_transcript_tokens.size(); tmp_i++) {
+                                    WHISPER_LOG_DEBUG("%s: Current new token: %s\n", __func__, cur_token_string.c_str());
+                                    WHISPER_LOG_DEBUG("%s: Current reference: %s\n", __func__, std::get<2>(reference_transcript_tokens[tmp_i]).c_str());
+                                    if (cur_token_string == std::get<2>(reference_transcript_tokens[tmp_i])) {
+                                        i_cur_reference_idx = tmp_i;
+                                        WHISPER_LOG_DEBUG("%s: We get reference token id matched: %d\n", __func__, tmp_i);
+                                        WHISPER_LOG_DEBUG("%s: Current new token: %s\n", __func__, cur_token_string.c_str());
+                                        WHISPER_LOG_DEBUG("%s: Current reference: %s\n", __func__, std::get<2>(reference_transcript_tokens[i_cur_reference_idx]).c_str());
+                                        i_cur_reference_idx += 1;
+                                        break;
+                                    }
+                                }
+                                if (i_cur_reference_idx == -1) {
+                                    // i_cur_reference_idx didn't get updated means that no match found
+                                    WHISPER_LOG_DEBUG("%s: No reference token matched, fallback to beam search with beam size 5.\n", __func__);
+                                }
+
+                            }
+                            else {
+                                WHISPER_LOG_DEBUG("%s: Current new token: %s\n", __func__, cur_token_string.c_str());
+                                WHISPER_LOG_DEBUG("%s: Current reference: %s\n", __func__, std::get<2>(reference_transcript_tokens[i_cur_reference_idx]).c_str());
+                                if (cur_token_string != std::get<2>(reference_transcript_tokens[i_cur_reference_idx])) {
+                                    WHISPER_LOG_DEBUG("%s: we reach the diverge point of the reference, fall back to beam search with beam size 5\n", __func__);
+                                }
+                                i_cur_reference_idx += 1;
+                            }
+                        }
 
                         while (beam_candidates.size() > cur_c && whisper_sequence_tokens_equal(beam_candidates[cur_c].sequence, cur.sequence) && i > 0) {
                             ++cur_c;
@@ -8321,6 +8372,25 @@ int whisper_full_for_whisper_streaming(
         struct whisper_context * ctx,
     struct whisper_full_params   params,
                    const float * samples,
-                           int   n_samples) {
-    return whisper_full_with_state_for_whisper_streaming(ctx, ctx->state, params, samples, n_samples);
+                           int   n_samples,
+                   const std::vector<std::tuple<double, double, std::string>> & reference_transcript_tokens) {
+    return whisper_full_with_state_for_whisper_streaming(ctx, ctx->state, params, samples, n_samples, reference_transcript_tokens);
+}
+
+void print_token_timestamp_vector(const std::vector<std::tuple<double, double, std::string>>& committed) {
+    WHISPER_LOG_DEBUG("%s: Printing current reference transcript token list\n", __func__);
+    for (const auto& entry : committed) {
+        double start_time, end_time;
+        std::string transcript;
+        std::tie(start_time, end_time, transcript) = entry;
+
+        WHISPER_LOG_DEBUG("%s: Start Time: %f, End Time: %f, Transcript: %s\n", __func__, start_time, end_time, transcript.c_str());
+    }
+}
+
+char WhisperToLowercase(char c) {
+    if (c >= 'A' && c <= 'Z') {
+        return c + ('a' - 'A');
+    }
+    return c;
 }

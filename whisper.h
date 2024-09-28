@@ -605,14 +605,16 @@ extern "C" {
                 struct whisper_context * ctx,
             struct whisper_full_params   params,
                            const float * samples,
-                                   int   n_samples);
+                                   int   n_samples,
+                                   const std::vector<std::tuple<double, double, std::string>> & reference_transcript_tokens);
 
     WHISPER_API int whisper_full_with_state_for_whisper_streaming(
                 struct whisper_context * ctx,
                   struct whisper_state * state,
             struct whisper_full_params   params,
                            const float * samples,
-                                   int   n_samples);
+                                   int   n_samples,
+                                   const std::vector<std::tuple<double, double, std::string>> & reference_transcript_tokens);
 
     // Split the input audio in chunks and process each chunk separately using whisper_full_with_state()
     // Result is stored in the default state of the context
@@ -684,6 +686,11 @@ extern "C" {
     // Control logging output; default behavior is to print to stderr
 
     WHISPER_API void whisper_log_set(ggml_log_callback log_callback, void * user_data);
+
+    WHISPER_API void print_token_timestamp_vector(const std::vector<std::tuple<double, double, std::string>>& committed);
+
+    // helper functions collection for whisper_streaming_cpp_optimized
+    WHISPER_API char WhisperToLowercase(char c);
 
 #ifdef __cplusplus
 }
