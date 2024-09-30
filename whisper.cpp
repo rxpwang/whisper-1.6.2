@@ -780,6 +780,16 @@ struct whisper_decoder {
     mutable std::mt19937 rng; // used for sampling at t > 0.0
 };
 
+struct beam_candidate {
+    int decoder_idx;
+    int seek_delta;
+
+    bool has_ts;
+
+    whisper_sequence sequence;
+    whisper_grammar grammar;
+};
+
 // [EXPERIMENTAL] Token-level timestamps with DTW
 struct whisper_aheads_masks {
     std::vector<struct ggml_tensor *> m;    // One mask per text layer.
@@ -7421,6 +7431,33 @@ void print_whisper_full_params(const struct whisper_full_params* params) {
     printf("  grammar_penalty: %f\n", params->grammar_penalty);
 }
 
+void _prepare_prompt(whisper_full_params &params, whisper_context *ctx, std::vector<int> &prompt_past)
+{
+    std::vector<whisper_token> prompt_tokens;
+
+    // initial prompt
+    if (!params.prompt_tokens && params.initial_prompt) {
+        prompt_tokens.resize(1024);
+        int n_needed = whisper_tokenize(ctx, params.initial_prompt, prompt_tokens.data(), prompt_tokens.size());
+        if (n_needed < 0) {
+            prompt_tokens.resize(-n_needed);
+            n_needed = whisper_tokenize(ctx, params.initial_prompt, prompt_tokens.data(), prompt_tokens.size());
+        }
+        prompt_tokens.resize(n_needed);
+        params.prompt_tokens   = prompt_tokens.data();
+        params.prompt_n_tokens = prompt_tokens.size();
+    }
+
+    // prepend the prompt tokens to the prompt_past
+    if (params.prompt_tokens && params.prompt_n_tokens > 0) {
+        // parse tokens from the pointer
+        for (int i = 0; i < params.prompt_n_tokens; i++) {
+            prompt_past.push_back(params.prompt_tokens[i]);
+        }
+        std::rotate(prompt_past.begin(), prompt_past.end() - params.prompt_n_tokens, prompt_past.end());
+    }
+}
+
 int whisper_full_with_state_for_whisper_streaming(
         struct whisper_context * ctx,
           struct whisper_state * state,
@@ -7540,6 +7577,8 @@ int whisper_full_with_state_for_whisper_streaming(
     }
 
     // prepare prompt
+    _prepare_prompt(params, ctx, prompt_past);
+    /*
     {
         std::vector<whisper_token> prompt_tokens;
 
@@ -7565,6 +7604,7 @@ int whisper_full_with_state_for_whisper_streaming(
             std::rotate(prompt_past.begin(), prompt_past.end() - params.prompt_n_tokens, prompt_past.end());
         }
     }
+    */
 
     // overwrite audio_ctx, max allowed is hparams.n_audio_ctx
     if (params.audio_ctx > whisper_n_audio_ctx(ctx)) {
@@ -7612,18 +7652,8 @@ int whisper_full_with_state_for_whisper_streaming(
     std::vector<whisper_token> prompt;
     prompt.reserve(whisper_n_text_ctx(ctx));
 
-    struct beam_candidate {
-        int decoder_idx;
-        int seek_delta;
-
-        bool has_ts;
-
-        whisper_sequence sequence;
-        whisper_grammar grammar;
-    };
-
-    std::vector<std::vector<beam_candidate>> bc_per_dec(n_decoders);
-    std::vector<beam_candidate> beam_candidates;
+    std::vector<std::vector<beam_candidate>> beam_candidates_per_decoder(n_decoders);
+    std::vector<beam_candidate> all_beam_candidates;
 
     // main loop
     int cur_enc_time = ctx->state->n_encode;
@@ -7671,7 +7701,9 @@ int whisper_full_with_state_for_whisper_streaming(
         for (int it = 0; it < (int) temperatures.size(); ++it) {
             const float t_cur = temperatures[it];
 
-            int n_decoders_cur = 1;
+            int n_decoders_cur = 0;
+            int32_t n_decoders_fallback_flag = 0;
+            int32_t cur_token_idx_in_reference_prompt = -1;
 
             switch (params.strategy) {
                 case whisper_sampling_strategy::WHISPER_SAMPLING_GREEDY:
@@ -7679,6 +7711,11 @@ int whisper_full_with_state_for_whisper_streaming(
                         if (t_cur > 0.0f) {
                             n_decoders_cur = params.greedy.best_of;
                         }
+                    } break;
+                case whisper_sampling_strategy::WHIPSER_SAMPLING_OPTIMIZED_BEAM_SEARCH:
+                    {
+                        // for beam reduce, first set the n_decoders_cur to 1 to only work on first decoder until diverge
+                        n_decoders_cur = 1;
                     } break;
                 case whisper_sampling_strategy::WHISPER_SAMPLING_BEAM_SEARCH:
                     {
@@ -7712,6 +7749,7 @@ int whisper_full_with_state_for_whisper_streaming(
                 decoder.completed = false;
                 decoder.has_ts    = false;
 
+                // no grammar is used in our system
                 if (params.grammar_rules != nullptr) {
                     decoder.grammar = whisper_grammar_init(params.grammar_rules, params.n_grammar_rules, params.i_start_rule);
                 } else {
@@ -7741,13 +7779,10 @@ int whisper_full_with_state_for_whisper_streaming(
                 prompt.insert(prompt.end(), prompt_init.begin(), prompt_init.end());
 
                 // print the prompt
-                //WHISPER_LOG_DEBUG("\n\n");
                 WHISPER_LOG_INFO("\n\n");
                 for (int i = 0; i < (int) prompt.size(); i++) {
-                    //WHISPER_LOG_DEBUG("%s: prompt[%d] = %s\n", __func__, i, ctx->vocab.id_to_token.at(prompt[i]).c_str());
                     WHISPER_LOG_INFO("%s: prompt[%d] = %s\n", __func__, i, ctx->vocab.id_to_token.at(prompt[i]).c_str());
                 }
-                //WHISPER_LOG_DEBUG("\n\n");
                 WHISPER_LOG_INFO("\n\n");
 
                 whisper_kv_cache_clear(state->kv_self);
@@ -7788,8 +7823,9 @@ int whisper_full_with_state_for_whisper_streaming(
             for (int i = 0; i < n_max; ++i) {
                 const int64_t t_start_sample_us = ggml_time_us();
 
-                if (params.strategy == whisper_sampling_strategy::WHISPER_SAMPLING_BEAM_SEARCH) {
-                    for (auto & bc : bc_per_dec) {
+                if (params.strategy == whisper_sampling_strategy::WHISPER_SAMPLING_BEAM_SEARCH ||
+                    params.strategy == whisper_sampling_strategy::WHIPSER_SAMPLING_OPTIMIZED_BEAM_SEARCH) {
+                    for (auto & bc : beam_candidates_per_decoder) {
                         bc.clear();
                     }
                 }
@@ -7825,13 +7861,14 @@ int whisper_full_with_state_for_whisper_streaming(
                                         decoder.sequence.sum_logprobs_all += decoder.sequence.tokens.back().plog;
                                     } break;
                                 case whisper_sampling_strategy::WHISPER_SAMPLING_BEAM_SEARCH:
+                                case whisper_sampling_strategy::WHIPSER_SAMPLING_OPTIMIZED_BEAM_SEARCH:
                                     {
                                         const auto tokens_new = whisper_sample_token_topk(*ctx, decoder, params.beam_search.beam_size);
 
                                         for (const auto & token : tokens_new) {
-                                            bc_per_dec[j].push_back({ j, decoder.seek_delta, decoder.has_ts, decoder.sequence, decoder.grammar, });
-                                            bc_per_dec[j].back().sequence.tokens.push_back(token);
-                                            bc_per_dec[j].back().sequence.sum_logprobs_all += token.plog;
+                                            beam_candidates_per_decoder[j].push_back({ j, decoder.seek_delta, decoder.has_ts, decoder.sequence, decoder.grammar, });
+                                            beam_candidates_per_decoder[j].back().sequence.tokens.push_back(token);
+                                            beam_candidates_per_decoder[j].back().sequence.sum_logprobs_all += token.plog;
                                         }
                                     } break;
                             };
@@ -7857,9 +7894,9 @@ int whisper_full_with_state_for_whisper_streaming(
                     }
                 }
 
-                beam_candidates.clear();
-                for (const auto & bc : bc_per_dec) {
-                    beam_candidates.insert(beam_candidates.end(), bc.begin(), bc.end());
+                all_beam_candidates.clear();
+                for (const auto & bc : beam_candidates_per_decoder) {
+                    all_beam_candidates.insert(all_beam_candidates.end(), bc.begin(), bc.end());
 
                     if (!bc.empty()) {
                         state->n_sample += 1;
@@ -7867,18 +7904,21 @@ int whisper_full_with_state_for_whisper_streaming(
                 }
 
                 // for beam-search, choose the top candidates and update the KV caches
-                if (params.strategy == whisper_sampling_strategy::WHISPER_SAMPLING_BEAM_SEARCH) {
+                if (params.strategy == whisper_sampling_strategy::WHISPER_SAMPLING_BEAM_SEARCH ||
+                    params.strategy == whisper_sampling_strategy::WHIPSER_SAMPLING_OPTIMIZED_BEAM_SEARCH) {
                     std::sort(
-                            beam_candidates.begin(),
-                            beam_candidates.end(),
+                            all_beam_candidates.begin(),
+                            all_beam_candidates.end(),
                             [](const beam_candidate & a, const beam_candidate & b) {
                         if (a.sequence.sum_logprobs_all != b.sequence.sum_logprobs_all) {
+                            // sort by sum_logprobs_all descending
                             return a.sequence.sum_logprobs_all > b.sequence.sum_logprobs_all;
                         }
+                        // if sum_logprobs_all are equal, sort by decoder_idx ascending
                         return a.decoder_idx < b.decoder_idx;
                     });
 
-                    uint32_t cur_c = 0;
+                    uint32_t cur_c = 0;  // start from the best beam candidate sequence
 
                     for (int j = 0; j < n_decoders_cur; ++j) {
                         auto & decoder = state->decoders[j];
@@ -7887,11 +7927,12 @@ int whisper_full_with_state_for_whisper_streaming(
                             continue;
                         }
 
-                        if (cur_c >= beam_candidates.size()) {
+                        if (cur_c >= all_beam_candidates.size()) {
                             cur_c = 0;
                         }
 
-                        auto & cur = beam_candidates[cur_c++];
+                        auto & cur = all_beam_candidates[cur_c];
+                        cur_c++;
                         
                         /*
                         for beam reduce, check if the current new token diverge from the reference transcript
@@ -7910,7 +7951,7 @@ int whisper_full_with_state_for_whisper_streaming(
                                 (reference_transcript_tokens.size() == 0) ||
                                 // case 2: we're at i_cur_reference_idx of the reference transcript, and it's also the end of the reference.
                                 // no more reference is available next, need to fallback
-                                ((i_cur_reference_idx != -1) && (reference_transcript_tokens.size() < (i_cur_reference_idx + 1)))
+                                ((cur_token_idx_in_reference_prompt != -1) && (reference_transcript_tokens.size() < (i_cur_reference_idx + 1)))
                             )
                                 {
                                 WHISPER_LOG_DEBUG("%s: No reference transcript yet, just fallback to beam search with beam size 5\n", __func__);
@@ -7962,7 +8003,7 @@ int whisper_full_with_state_for_whisper_streaming(
                                 i_cur_reference_idx += 1;
                             }
                         }
-
+                        
                         // fallback to beam size 5 if needed
                         if ((n_decoders_fallback_flag == 1) && (n_decoders_cur == 1)) {
                             // when the flag is set and the n_decoders_cur has not been updated, we update it to beam size 5
@@ -7980,7 +8021,7 @@ int whisper_full_with_state_for_whisper_streaming(
                         }
 
 
-                        while (beam_candidates.size() > cur_c && whisper_sequence_tokens_equal(beam_candidates[cur_c].sequence, cur.sequence) && i > 0) {
+                        while (cur_c < all_beam_candidates.size() && whisper_sequence_tokens_equal(all_beam_candidates[cur_c].sequence, cur.sequence) && i > 0) {
                             ++cur_c;
                         }
 
