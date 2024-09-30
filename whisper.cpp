@@ -7931,7 +7931,7 @@ int whisper_full_with_state_for_whisper_streaming(
                             we have this because the reference transcription and the audio sometimes have miss alignment
                             */ 
                             else if (i_cur_reference_idx == -1) {
-                                WHISPER_LOG_DEBUG("%s: Searching for the matched reference token... %d\n", __func__);
+                                WHISPER_LOG_DEBUG("%s: Searching for the matched reference token...\n", __func__);
                                 int tmp_i;
                                 for (tmp_i = 0; tmp_i < reference_transcript_tokens.size(); tmp_i++) {
                                     WHISPER_LOG_DEBUG("%s: Current new token: %s\n", __func__, cur_token_string.c_str());
