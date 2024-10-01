@@ -7663,9 +7663,7 @@ int whisper_full_with_state_for_whisper_streaming(
         prompt_past.clear();
     }
 
-    // prepare prompt
-    _prepare_prompt(params, ctx, prompt_past);
-    /*
+    // prepare prompt 
     {
         std::vector<whisper_token> prompt_tokens;
 
@@ -7691,7 +7689,6 @@ int whisper_full_with_state_for_whisper_streaming(
             std::rotate(prompt_past.begin(), prompt_past.end() - params.prompt_n_tokens, prompt_past.end());
         }
     }
-    */
 
     // overwrite audio_ctx, max allowed is hparams.n_audio_ctx
     if (params.audio_ctx > whisper_n_audio_ctx(ctx)) {
