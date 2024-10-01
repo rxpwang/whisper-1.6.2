@@ -1,7 +1,7 @@
 {
     "configurations": [
         {
-            "name": "Apple Silicon Launch",
+            "name": "Apple Silicon Launcher",
             "type": "cppdbg",
             "request": "launch",
             "program": "${workspaceRoot}/whisper_streaming_cpp_optimized",

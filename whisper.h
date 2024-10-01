@@ -449,6 +449,7 @@ extern "C" {
     enum whisper_sampling_strategy {
         WHISPER_SAMPLING_GREEDY,      // similar to OpenAI's GreedyDecoder
         WHISPER_SAMPLING_BEAM_SEARCH, // similar to OpenAI's BeamSearchDecoder
+        WHIPSER_SAMPLING_OPTIMIZED_BEAM_SEARCH,  // optimized beam search defined by us
     };
 
     // Text segment callback
