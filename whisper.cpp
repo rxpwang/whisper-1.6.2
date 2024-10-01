@@ -7432,33 +7432,6 @@ void print_whisper_full_params(const struct whisper_full_params* params) {
     printf("  grammar_penalty: %f\n", params->grammar_penalty);
 }
 
-void _prepare_prompt(whisper_full_params &params, whisper_context *ctx, std::vector<int> &prompt_past)
-{
-    std::vector<whisper_token> prompt_tokens;
-
-    // initial prompt
-    if (!params.prompt_tokens && params.initial_prompt) {
-        prompt_tokens.resize(1024);
-        int n_needed = whisper_tokenize(ctx, params.initial_prompt, prompt_tokens.data(), prompt_tokens.size());
-        if (n_needed < 0) {
-            prompt_tokens.resize(-n_needed);
-            n_needed = whisper_tokenize(ctx, params.initial_prompt, prompt_tokens.data(), prompt_tokens.size());
-        }
-        prompt_tokens.resize(n_needed);
-        params.prompt_tokens   = prompt_tokens.data();
-        params.prompt_n_tokens = prompt_tokens.size();
-    }
-
-    // prepend the prompt tokens to the prompt_past
-    if (params.prompt_tokens && params.prompt_n_tokens > 0) {
-        // parse tokens from the pointer
-        for (int i = 0; i < params.prompt_n_tokens; i++) {
-            prompt_past.push_back(params.prompt_tokens[i]);
-        }
-        std::rotate(prompt_past.begin(), prompt_past.end() - params.prompt_n_tokens, prompt_past.end());
-    }
-}
-
 void _bookkeep_optimized_beam_search(
     whisper_context *ctx,
     int &n_decoders_cur, int &n_decoders,
