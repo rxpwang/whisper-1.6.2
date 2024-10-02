@@ -7835,7 +7835,7 @@ int whisper_full_with_state_for_whisper_streaming(
             }
 
             // pipeline implementation: initialize the decoders for state_cpu
-            for (int j = 0; j < n_decoders_cur; ++j) {
+            for (int j = 0; j < n_decoders; ++j) {
                 auto & decoder = state_cpu->decoders[j];
 
                 decoder.sequence.tokens.clear();
