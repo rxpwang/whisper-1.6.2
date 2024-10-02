@@ -488,9 +488,6 @@ int main(int argc, char ** argv) {
     }
 
     struct whisper_context * ctx = whisper_init_from_file_with_params(params.model.c_str(), cparams);
-    cparams.use_gpu = false;
-    struct whisper_context * ctx_cpu = whisper_init_from_file_with_params(params.model.c_str(), cparams);
-
 
     std::vector<float> pcmf32    (n_samples_30s, 0.0f);
     std::vector<float> pcmf32_old;
@@ -716,7 +713,7 @@ int main(int argc, char ** argv) {
         // run the inference
         {
             whisper_full_params wparams = whisper_full_default_params(WHISPER_SAMPLING_GREEDY);
-            //wparams.strategy = (params.beam_size > 1) ? WHISPER_SAMPLING_BEAM_SEARCH : WHISPER_SAMPLING_GREEDY;
+            // wparams.strategy = (params.beam_size > 1) ? WHISPER_SAMPLING_BEAM_SEARCH : WHISPER_SAMPLING_GREEDY;
             wparams.strategy = WHIPSER_SAMPLING_OPTIMIZED_BEAM_SEARCH;
             wparams.print_progress   = false;
             wparams.print_special    = params.print_special;
@@ -772,7 +769,7 @@ int main(int argc, char ** argv) {
             reference_transcript_tokens.insert(reference_transcript_tokens.end(), transcript_buffer.self_buffer.begin(), transcript_buffer.self_buffer.end());
 
             // whisper_streaming asr.transcribe() in an iter
-            if (whisper_full_for_whisper_streaming(ctx, wparams, pcmf32.data(), pcmf32.size(), reference_transcript_tokens, ctx_cpu) != 0) {
+            if (whisper_full_for_whisper_streaming(ctx, wparams, pcmf32.data(), pcmf32.size(), reference_transcript_tokens) != 0) {
                 fprintf(stderr, "%s: failed to process audio\n", argv[0]);
                 return 6;
             }

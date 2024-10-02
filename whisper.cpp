@@ -7809,7 +7809,7 @@ int whisper_full_with_state_for_whisper_streaming(
             WHISPER_LOG_DEBUG("\n%s: strategy = %d, decoding with %d decoders, temperature = %.2f\n", __func__, params.strategy, n_decoders_cur, t_cur);
 
             // TAGS: WHISPER_DECODER_INIT
-            for (int j = 0; j < n_decoders_cur; ++j) {
+            for (int j = 0; j < n_decoders; ++j) {
                 auto & decoder = state->decoders[j];
 
                 decoder.sequence.tokens.clear();
