@@ -488,6 +488,8 @@ int main(int argc, char ** argv) {
     }
 
     struct whisper_context * ctx = whisper_init_from_file_with_params(params.model.c_str(), cparams);
+    cparams.use_gpu = false;
+    struct whisper_context * ctx_cpu = whisper_init_from_file_with_params(params.model.c_str(), cparams);
 
     std::vector<float> pcmf32    (n_samples_30s, 0.0f);
     std::vector<float> pcmf32_old;
@@ -769,12 +771,13 @@ int main(int argc, char ** argv) {
             reference_transcript_tokens.insert(reference_transcript_tokens.end(), transcript_buffer.self_buffer.begin(), transcript_buffer.self_buffer.end());
 
             // whisper_streaming asr.transcribe() in an iter
-            if (whisper_full_for_whisper_streaming(ctx, wparams, pcmf32.data(), pcmf32.size(), reference_transcript_tokens) != 0) {
+            if (whisper_full_for_whisper_streaming(ctx, wparams, pcmf32.data(), pcmf32.size(), reference_transcript_tokens, ctx_cpu) != 0) {
                 fprintf(stderr, "%s: failed to process audio\n", argv[0]);
                 return 6;
             }
 
             whisper_print_timings(ctx);
+            whisper_print_timings(ctx_cpu);
 
             // whisper_streaming asr.ts_words in an iter, the return value is the tsw with format [(beg,end,"word1"), ...]
             std::vector<std::tuple<double, double, std::string>> tsw = output_word_level_timestamp(ctx, params, true);
@@ -913,7 +916,9 @@ int main(int argc, char ** argv) {
     //audio.pause();
     print_tsw(committed);
     whisper_print_timings(ctx);
+    whisper_print_timings(ctx_cpu);
     whisper_free(ctx);
+    whisper_free(ctx_cpu);
 
     return 0;
 }
