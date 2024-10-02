@@ -713,7 +713,8 @@ int main(int argc, char ** argv) {
         // run the inference
         {
             whisper_full_params wparams = whisper_full_default_params(WHISPER_SAMPLING_GREEDY);
-            wparams.strategy = (params.beam_size > 1) ? WHISPER_SAMPLING_BEAM_SEARCH : WHISPER_SAMPLING_GREEDY;
+            // wparams.strategy = (params.beam_size > 1) ? WHISPER_SAMPLING_BEAM_SEARCH : WHISPER_SAMPLING_GREEDY;
+            wparams.strategy = WHIPSER_SAMPLING_OPTIMIZED_BEAM_SEARCH;
             wparams.print_progress   = false;
             wparams.print_special    = params.print_special;
             wparams.print_realtime   = false;
