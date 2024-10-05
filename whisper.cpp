@@ -7746,7 +7746,9 @@ int whisper_full_with_state_for_whisper_streaming(
 
     int best_decoder_id = 0;
 
-    for (int it = 0; it < (int) temperatures.size(); ++it) {
+    //for (int it = 0; it < (int) temperatures.size(); ++it) {
+    {
+        const int it = 0; // removing the for loop for temperature fallback, only one temperature is used
         const float t_cur = temperatures[it];
 
         int n_decoders_cur = 0;
@@ -8354,15 +8356,15 @@ int whisper_full_with_state_for_whisper_streaming(
             }
         }
 
-        if (success) {
-            //for (auto & token : ctx->decoders[best_decoder_id].sequence.tokens) {
-            //    WHISPER_LOG_DEBUG("%s: token = %d, p = %6.3f, pt = %6.3f, ts = %s, str = %s\n", __func__, token.id, token.p, token.pt, ctx->vocab.id_to_token.at(token.tid).c_str(), ctx->vocab.id_to_token.at(token.id).c_str());
-            //}
+        // if (success) {
+        //     //for (auto & token : ctx->decoders[best_decoder_id].sequence.tokens) {
+        //     //    WHISPER_LOG_DEBUG("%s: token = %d, p = %6.3f, pt = %6.3f, ts = %s, str = %s\n", __func__, token.id, token.p, token.pt, ctx->vocab.id_to_token.at(token.tid).c_str(), ctx->vocab.id_to_token.at(token.id).c_str());
+        //     //}
 
-            break;
-        }
+        //     break;
+        // }
 
-        WHISPER_LOG_DEBUG("\n%s: failed to decode with temperature = %.2f\n", __func__, t_cur);
+        // WHISPER_LOG_DEBUG("\n%s: failed to decode with temperature = %.2f\n", __func__, t_cur);
     }
 
     // output results through a user-provided callback
