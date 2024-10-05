@@ -7729,238 +7729,536 @@ int whisper_full_with_state_for_whisper_streaming(
     std::vector<std::vector<beam_candidate>> beam_candidates_per_decoder(n_decoders);
     std::vector<beam_candidate> all_beam_candidates;
 
-    // main loop
-    int cur_enc_time = ctx->state->n_encode;
-    while (true) {
-        if (params.progress_callback) {
-            const int progress_cur = (100*(seek - seek_start))/(seek_end - seek_start);
+    // encode audio features starting at offset seek
+    if (!whisper_encode_internal(*ctx, *state, seek, params.n_threads, params.abort_callback, params.abort_callback_user_data)) {
+        WHISPER_LOG_ERROR("%s: failed to encode\n", __func__);
+        return -6;
+    }
 
-            params.progress_callback(
-                ctx, state, progress_cur, params.progress_callback_user_data);
-        }
+    // pipeline implementation: copy the state.kv_cross to state_cpu.kv_cross
+    state_cpu->kv_cross = state->kv_cross;
 
-        // if only 1 second left, then stop
-        if (seek + 100 >= seek_end) {
-            break;
-        }
+    // if there is a very short audio segment left to process, we remove any past prompt since it tends
+    // to confuse the decoder and often make it repeat or hallucinate stuff
+    if (seek > seek_start && seek + 500 >= seek_end) {
+        prompt_past.clear();
+    }
 
-        // if input shorter than 30s, then only do one encoding
-        if (seek_end <= 3000) {
-            if ((ctx->state->n_encode - cur_enc_time) >= 1) {
-                break;
+    int best_decoder_id = 0;
+
+    for (int it = 0; it < (int) temperatures.size(); ++it) {
+        const float t_cur = temperatures[it];
+
+        int n_decoders_cur = 0;
+        int32_t n_decoders_fallback_flag = 0;
+        size_t cur_token_idx_in_reference_prompt = -1;
+
+        switch (params.strategy) {
+            case whisper_sampling_strategy::WHISPER_SAMPLING_GREEDY:
+                {
+                    if (t_cur > 0.0f) {
+                        n_decoders_cur = params.greedy.best_of;
+                    }
+                } break;
+            case whisper_sampling_strategy::WHIPSER_SAMPLING_OPTIMIZED_BEAM_SEARCH:
+                {
+                    // for beam reduce, first set the n_decoders_cur to 1 to only work on first decoder until diverge
+                    n_decoders_cur = 1;
+                } break;
+            case whisper_sampling_strategy::WHISPER_SAMPLING_BEAM_SEARCH:
+                {
+                    if (t_cur > 0.0f) {
+                        n_decoders_cur = params.greedy.best_of;
+                    } else {
+                        n_decoders_cur = params.beam_search.beam_size;
+                    }
+                } break;
+        };
+
+        n_decoders_cur = std::max(1, n_decoders_cur);
+
+        WHISPER_LOG_DEBUG("\n%s: strategy = %d, decoding with %d decoders, temperature = %.2f\n", __func__, params.strategy, n_decoders_cur, t_cur);
+
+        // TAGS: WHISPER_DECODER_INIT
+        for (int j = 0; j < n_decoders; ++j) {
+            auto & decoder = state->decoders[j];
+
+            decoder.sequence.tokens.clear();
+            decoder.sequence.result_len       = 0;
+            decoder.sequence.sum_logprobs_all = 0.0;
+            decoder.sequence.sum_logprobs     = -INFINITY;
+            decoder.sequence.avg_logprobs     = -INFINITY;
+            decoder.sequence.entropy          = 0.0;
+            decoder.sequence.score            = -INFINITY;
+
+            decoder.seek_delta = 100*WHISPER_CHUNK_SIZE;
+
+            decoder.failed    = false;
+            decoder.completed = false;
+            decoder.has_ts    = false;
+
+            // no grammar is used in our system
+            if (params.grammar_rules != nullptr) {
+                decoder.grammar = whisper_grammar_init(params.grammar_rules, params.n_grammar_rules, params.i_start_rule);
+            } else {
+                decoder.grammar = {};
             }
         }
 
-        if (params.encoder_begin_callback) {
-            if (params.encoder_begin_callback(ctx, state, params.encoder_begin_callback_user_data) == false) {
-                WHISPER_LOG_ERROR("%s: encoder_begin_callback returned false - aborting\n", __func__);
-                break;
+        // pipeline implementation: initialize the decoders for state_cpu
+        for (int j = 0; j < n_decoders; ++j) {
+            auto & decoder = state_cpu->decoders[j];
+
+            decoder.sequence.tokens.clear();
+            decoder.sequence.result_len       = 0;
+            decoder.sequence.sum_logprobs_all = 0.0;
+            decoder.sequence.sum_logprobs     = -INFINITY;
+            decoder.sequence.avg_logprobs     = -INFINITY;
+            decoder.sequence.entropy          = 0.0;
+            decoder.sequence.score            = -INFINITY;
+
+            decoder.seek_delta = 100*WHISPER_CHUNK_SIZE;
+
+            decoder.failed    = false;
+            decoder.completed = false;
+            decoder.has_ts    = false;
+
+            // no grammar is used in our system
+            if (params.grammar_rules != nullptr) {
+                decoder.grammar = whisper_grammar_init(params.grammar_rules, params.n_grammar_rules, params.i_start_rule);
+            } else {
+                decoder.grammar = {};
             }
         }
 
-        // encode audio features starting at offset seek
-        if (!whisper_encode_internal(*ctx, *state, seek, params.n_threads, params.abort_callback, params.abort_callback_user_data)) {
-            WHISPER_LOG_ERROR("%s: failed to encode\n", __func__);
-            return -6;
-        }
+        // init prompt and kv cache for the current iteration
+        // TODO: do not recompute the prompt if it is the same as previous time
+        {
+            prompt.clear();
 
-        // pipeline implementation: copy the state.kv_cross to state_cpu.kv_cross
-        state_cpu->kv_cross = state->kv_cross;
+            // if we have already generated some text, use it as a prompt to condition the next generation
+            if (!prompt_past.empty() && t_cur < 0.5f && params.n_max_text_ctx > 0) {
+                int n_take = std::min(std::min(params.n_max_text_ctx, whisper_n_text_ctx(ctx)/2), int(prompt_past.size()));
 
-        // if there is a very short audio segment left to process, we remove any past prompt since it tends
-        // to confuse the decoder and often make it repeat or hallucinate stuff
-        if (seek > seek_start && seek + 500 >= seek_end) {
-            prompt_past.clear();
-        }
-
-        int best_decoder_id = 0;
-
-        for (int it = 0; it < (int) temperatures.size(); ++it) {
-            const float t_cur = temperatures[it];
-
-            int n_decoders_cur = 0;
-            int32_t n_decoders_fallback_flag = 0;
-            size_t cur_token_idx_in_reference_prompt = -1;
-
-            switch (params.strategy) {
-                case whisper_sampling_strategy::WHISPER_SAMPLING_GREEDY:
-                    {
-                        if (t_cur > 0.0f) {
-                            n_decoders_cur = params.greedy.best_of;
-                        }
-                    } break;
-                case whisper_sampling_strategy::WHIPSER_SAMPLING_OPTIMIZED_BEAM_SEARCH:
-                    {
-                        // for beam reduce, first set the n_decoders_cur to 1 to only work on first decoder until diverge
-                        n_decoders_cur = 1;
-                    } break;
-                case whisper_sampling_strategy::WHISPER_SAMPLING_BEAM_SEARCH:
-                    {
-                        if (t_cur > 0.0f) {
-                            n_decoders_cur = params.greedy.best_of;
-                        } else {
-                            n_decoders_cur = params.beam_search.beam_size;
-                        }
-                    } break;
-            };
-
-            n_decoders_cur = std::max(1, n_decoders_cur);
-
-            WHISPER_LOG_DEBUG("\n%s: strategy = %d, decoding with %d decoders, temperature = %.2f\n", __func__, params.strategy, n_decoders_cur, t_cur);
-
-            // TAGS: WHISPER_DECODER_INIT
-            for (int j = 0; j < n_decoders; ++j) {
-                auto & decoder = state->decoders[j];
-
-                decoder.sequence.tokens.clear();
-                decoder.sequence.result_len       = 0;
-                decoder.sequence.sum_logprobs_all = 0.0;
-                decoder.sequence.sum_logprobs     = -INFINITY;
-                decoder.sequence.avg_logprobs     = -INFINITY;
-                decoder.sequence.entropy          = 0.0;
-                decoder.sequence.score            = -INFINITY;
-
-                decoder.seek_delta = 100*WHISPER_CHUNK_SIZE;
-
-                decoder.failed    = false;
-                decoder.completed = false;
-                decoder.has_ts    = false;
-
-                // no grammar is used in our system
-                if (params.grammar_rules != nullptr) {
-                    decoder.grammar = whisper_grammar_init(params.grammar_rules, params.n_grammar_rules, params.i_start_rule);
-                } else {
-                    decoder.grammar = {};
-                }
+                prompt = { whisper_token_prev(ctx) };
+                prompt.insert(prompt.begin() + 1, prompt_past.end() - n_take, prompt_past.end());
             }
 
-            // pipeline implementation: initialize the decoders for state_cpu
-            for (int j = 0; j < n_decoders; ++j) {
-                auto & decoder = state_cpu->decoders[j];
+            // init new transcription with sot, language (opt) and task tokens
+            prompt.insert(prompt.end(), prompt_init.begin(), prompt_init.end());
 
-                decoder.sequence.tokens.clear();
-                decoder.sequence.result_len       = 0;
-                decoder.sequence.sum_logprobs_all = 0.0;
-                decoder.sequence.sum_logprobs     = -INFINITY;
-                decoder.sequence.avg_logprobs     = -INFINITY;
-                decoder.sequence.entropy          = 0.0;
-                decoder.sequence.score            = -INFINITY;
+            // print the prompt
+            WHISPER_LOG_INFO("\n\n");
+            for (int i = 0; i < (int) prompt.size(); i++) {
+                WHISPER_LOG_INFO("%s: prompt[%d] = %s\n", __func__, i, ctx->vocab.id_to_token.at(prompt[i]).c_str());
+            }
+            WHISPER_LOG_INFO("\n\n");
 
-                decoder.seek_delta = 100*WHISPER_CHUNK_SIZE;
+            whisper_kv_cache_clear(state->kv_self);
 
-                decoder.failed    = false;
-                decoder.completed = false;
-                decoder.has_ts    = false;
+            // pipeline implementation: also clear the kv cache for state_cpu
+            whisper_kv_cache_clear(state_cpu->kv_self);
 
-                // no grammar is used in our system
-                if (params.grammar_rules != nullptr) {
-                    decoder.grammar = whisper_grammar_init(params.grammar_rules, params.n_grammar_rules, params.i_start_rule);
-                } else {
-                    decoder.grammar = {};
-                }
+            whisper_batch_prep_legacy(state->batch, prompt.data(), prompt.size(), 0, 0);
+
+            if (!whisper_decode_internal(*ctx, *state, state->batch, params.n_threads, false, params.abort_callback, params.abort_callback_user_data)) {
+                WHISPER_LOG_ERROR("%s: failed to decode\n", __func__);
+                return -7;
             }
 
-            // init prompt and kv cache for the current iteration
-            // TODO: do not recompute the prompt if it is the same as previous time
             {
-                prompt.clear();
-
-                // if we have already generated some text, use it as a prompt to condition the next generation
-                if (!prompt_past.empty() && t_cur < 0.5f && params.n_max_text_ctx > 0) {
-                    int n_take = std::min(std::min(params.n_max_text_ctx, whisper_n_text_ctx(ctx)/2), int(prompt_past.size()));
-
-                    prompt = { whisper_token_prev(ctx) };
-                    prompt.insert(prompt.begin() + 1, prompt_past.end() - n_take, prompt_past.end());
-                }
-
-                // init new transcription with sot, language (opt) and task tokens
-                prompt.insert(prompt.end(), prompt_init.begin(), prompt_init.end());
-
-                // print the prompt
-                WHISPER_LOG_INFO("\n\n");
-                for (int i = 0; i < (int) prompt.size(); i++) {
-                    WHISPER_LOG_INFO("%s: prompt[%d] = %s\n", __func__, i, ctx->vocab.id_to_token.at(prompt[i]).c_str());
-                }
-                WHISPER_LOG_INFO("\n\n");
-
-                whisper_kv_cache_clear(state->kv_self);
-
-                // pipeline implementation: also clear the kv cache for state_cpu
-                whisper_kv_cache_clear(state_cpu->kv_self);
-
-                whisper_batch_prep_legacy(state->batch, prompt.data(), prompt.size(), 0, 0);
-
-                if (!whisper_decode_internal(*ctx, *state, state->batch, params.n_threads, false, params.abort_callback, params.abort_callback_user_data)) {
-                    WHISPER_LOG_ERROR("%s: failed to decode\n", __func__);
-                    return -7;
-                }
-
-                {
-                    const int64_t t_start_sample_us = ggml_time_us();
-
-                    state->decoders[0].i_batch = prompt.size() - 1;
-
-                    whisper_process_logits(*ctx, *state, state->decoders[0], params, t_cur);
-
-                    for (int j = 1; j < n_decoders_cur; ++j) {
-                        auto & decoder = state->decoders[j];
-
-                        whisper_kv_cache_seq_cp(state->kv_self, 0, j, -1, -1);
-
-                        memcpy(decoder.probs.data(),    state->decoders[0].probs.data(),    decoder.probs.size()*sizeof(decoder.probs[0]));
-                        memcpy(decoder.logits.data(),   state->decoders[0].logits.data(),   decoder.logits.size()*sizeof(decoder.logits[0]));
-                        memcpy(decoder.logprobs.data(), state->decoders[0].logprobs.data(), decoder.logprobs.size()*sizeof(decoder.logprobs[0]));
-                    }
-
-                    state->t_sample_us += ggml_time_us() - t_start_sample_us;
-                }
-
-                // pipeline implementation: copy the prompt batch result to state_cpu
-                state_cpu->logits = state->logits;
-                state_cpu->kv_self = state->kv_self;
-
-                // pipeline implementation: prepare the decoders for state_cpu as well
-                {
-                    const int64_t t_start_sample_us = ggml_time_us();
-                    state_cpu->decoders[0].i_batch = prompt.size() - 1;
-                    whisper_process_logits(*ctx_cpu, *state_cpu, state_cpu->decoders[0], params, t_cur);
-
-                    for (int j = 1; j < n_decoders_cur; ++j) {
-                        auto & decoder = state_cpu->decoders[j];
-
-                        whisper_kv_cache_seq_cp(state_cpu->kv_self, 0, j, -1, -1);
-
-                        memcpy(decoder.probs.data(),    state_cpu->decoders[0].probs.data(),    decoder.probs.size()*sizeof(decoder.probs[0]));
-                        memcpy(decoder.logits.data(),   state_cpu->decoders[0].logits.data(),   decoder.logits.size()*sizeof(decoder.logits[0]));
-                        memcpy(decoder.logprobs.data(), state_cpu->decoders[0].logprobs.data(), decoder.logprobs.size()*sizeof(decoder.logprobs[0]));
-                    }
-
-                }
-            }
-
-            int n_max = whisper_n_text_ctx(ctx)/2 - 4;
-            n_max = (n_max < params.max_round_decode) ? n_max : params.max_round_decode;
-            WHISPER_LOG_INFO("%s: max decode round: %d\n", __func__, n_max);
-            
-            // each loop is one decoding round. each round results in one new token in each decoder
-            for (int i = 0; i < n_max; ++i) {
                 const int64_t t_start_sample_us = ggml_time_us();
 
-                if (params.strategy == whisper_sampling_strategy::WHISPER_SAMPLING_BEAM_SEARCH ||
-                    params.strategy == whisper_sampling_strategy::WHIPSER_SAMPLING_OPTIMIZED_BEAM_SEARCH) {
-                    for (auto & bc : beam_candidates_per_decoder) {
-                        bc.clear();
+                state->decoders[0].i_batch = prompt.size() - 1;
+
+                whisper_process_logits(*ctx, *state, state->decoders[0], params, t_cur);
+
+                for (int j = 1; j < n_decoders_cur; ++j) {
+                    auto & decoder = state->decoders[j];
+
+                    whisper_kv_cache_seq_cp(state->kv_self, 0, j, -1, -1);
+
+                    memcpy(decoder.probs.data(),    state->decoders[0].probs.data(),    decoder.probs.size()*sizeof(decoder.probs[0]));
+                    memcpy(decoder.logits.data(),   state->decoders[0].logits.data(),   decoder.logits.size()*sizeof(decoder.logits[0]));
+                    memcpy(decoder.logprobs.data(), state->decoders[0].logprobs.data(), decoder.logprobs.size()*sizeof(decoder.logprobs[0]));
+                }
+
+                state->t_sample_us += ggml_time_us() - t_start_sample_us;
+            }
+
+            // pipeline implementation: copy the prompt batch result to state_cpu
+            state_cpu->logits = state->logits;
+            state_cpu->kv_self = state->kv_self;
+
+            // pipeline implementation: prepare the decoders for state_cpu as well
+            {
+                const int64_t t_start_sample_us = ggml_time_us();
+                state_cpu->decoders[0].i_batch = prompt.size() - 1;
+                whisper_process_logits(*ctx_cpu, *state_cpu, state_cpu->decoders[0], params, t_cur);
+
+                for (int j = 1; j < n_decoders_cur; ++j) {
+                    auto & decoder = state_cpu->decoders[j];
+
+                    whisper_kv_cache_seq_cp(state_cpu->kv_self, 0, j, -1, -1);
+
+                    memcpy(decoder.probs.data(),    state_cpu->decoders[0].probs.data(),    decoder.probs.size()*sizeof(decoder.probs[0]));
+                    memcpy(decoder.logits.data(),   state_cpu->decoders[0].logits.data(),   decoder.logits.size()*sizeof(decoder.logits[0]));
+                    memcpy(decoder.logprobs.data(), state_cpu->decoders[0].logprobs.data(), decoder.logprobs.size()*sizeof(decoder.logprobs[0]));
+                }
+
+            }
+        }
+
+        int n_max = whisper_n_text_ctx(ctx)/2 - 4;
+        n_max = (n_max < params.max_round_decode) ? n_max : params.max_round_decode;
+        WHISPER_LOG_INFO("%s: max decode round: %d\n", __func__, n_max);
+        
+        // each loop is one decoding round. each round results in one new token in each decoder
+        for (int i = 0; i < n_max; ++i) {
+            const int64_t t_start_sample_us = ggml_time_us();
+
+            if (params.strategy == whisper_sampling_strategy::WHISPER_SAMPLING_BEAM_SEARCH ||
+                params.strategy == whisper_sampling_strategy::WHIPSER_SAMPLING_OPTIMIZED_BEAM_SEARCH) {
+                for (auto & bc : beam_candidates_per_decoder) {
+                    bc.clear();
+                }
+            }
+
+            WHISPER_LOG_DEBUG("%s: current decoders number %d\n",
+                            __func__, n_decoders_cur);
+            // sampling: for each decoder, getting the next token it predicts
+            // TODO: avoid memory allocations, optimize, avoid threads?
+            {
+                std::atomic<int> j_cur(0);
+
+                auto get_next_token = [&]() {
+                    while (true) {
+                        const int j = j_cur.fetch_add(1);
+
+                        if (j >= n_decoders_cur) {
+                            break;
+                        }
+
+                        //auto & decoder = state->decoders[j];
+                        auto & decoder = state_cpu->decoders[j];
+
+                        if (decoder.completed || decoder.failed) {
+                            continue;
+                            WHISPER_LOG_DEBUG("%s: decoder finished\n",
+                            __func__);
+                        }
+
+                        switch (params.strategy) {
+                            case whisper_sampling_strategy::WHISPER_SAMPLING_GREEDY:
+                                {
+                                    if (t_cur < 1e-6f) {
+                                        decoder.sequence.tokens.push_back(whisper_sample_token(*ctx, decoder, true));
+                                    } else {
+                                        decoder.sequence.tokens.push_back(whisper_sample_token(*ctx, decoder, false));
+                                    }
+
+                                    decoder.sequence.sum_logprobs_all += decoder.sequence.tokens.back().plog;
+                                } break;
+                            case whisper_sampling_strategy::WHISPER_SAMPLING_BEAM_SEARCH:
+                            case whisper_sampling_strategy::WHIPSER_SAMPLING_OPTIMIZED_BEAM_SEARCH:
+                                {
+                                    //const auto tokens_new = whisper_sample_token_topk(*ctx, decoder, params.beam_search.beam_size);
+                                    const auto tokens_new = whisper_sample_token_topk(*ctx_cpu, decoder, params.beam_search.beam_size);
+                                    for (const auto & token : tokens_new) {
+                                        beam_candidates_per_decoder[j].push_back({ j, decoder.seek_delta, decoder.has_ts, decoder.sequence, decoder.grammar, });
+                                        beam_candidates_per_decoder[j].back().sequence.tokens.push_back(token);
+                                        beam_candidates_per_decoder[j].back().sequence.sum_logprobs_all += token.plog;
+                                    }
+                                } break;
+                        };
+                    }
+                };
+
+                const int n_threads = std::min(params.n_threads, n_decoders_cur);
+
+                if (n_threads == 1) {
+                    get_next_token();
+                } else {
+                    std::vector<std::thread> threads(n_threads - 1);
+
+                    for (int t = 0; t < n_threads - 1; ++t) {
+                        threads[t] = std::thread(get_next_token);
+                    }
+
+                    get_next_token();
+
+                    for (int t = 0; t < n_threads - 1; ++t) {
+                        threads[t].join();
+                    }
+                }
+            }
+
+            all_beam_candidates.clear();
+            for (const auto & bc : beam_candidates_per_decoder) {
+                all_beam_candidates.insert(all_beam_candidates.end(), bc.begin(), bc.end());
+
+                if (!bc.empty()) {
+                    state->n_sample += 1;
+                }
+            }
+
+            // for beam-search, choose the top candidates and update the KV caches
+            if (params.strategy == whisper_sampling_strategy::WHISPER_SAMPLING_BEAM_SEARCH ||
+                params.strategy == whisper_sampling_strategy::WHIPSER_SAMPLING_OPTIMIZED_BEAM_SEARCH) {
+                std::sort(
+                        all_beam_candidates.begin(),
+                        all_beam_candidates.end(),
+                        [](const beam_candidate & a, const beam_candidate & b) {
+                    if (a.sequence.sum_logprobs_all != b.sequence.sum_logprobs_all) {
+                        // sort by sum_logprobs_all descending
+                        return a.sequence.sum_logprobs_all > b.sequence.sum_logprobs_all;
+                    }
+                    // if sum_logprobs_all are equal, sort by decoder_idx ascending
+                    return a.decoder_idx < b.decoder_idx;
+                });
+
+                uint32_t cur_c = 0;  // start from the best beam candidate sequence
+
+                for (int j = 0; j < n_decoders_cur; ++j) {
+                    //auto & decoder = state->decoders[j];
+                    auto & decoder = state_cpu->decoders[j];
+                    if (decoder.completed || decoder.failed) {
+                        continue;
+                    }
+
+                    if (cur_c >= all_beam_candidates.size()) {
+                        cur_c = 0;
+                    }
+
+                    auto & cur = all_beam_candidates[cur_c];
+                    cur_c++;
+                    
+                    /*
+                    for beam reduce, check if the current new token diverge from the reference transcript
+                    if it diverge, we need to make the decoding fall back to beam search with beam size 5
+                    */
+                    if (params.strategy == WHIPSER_SAMPLING_OPTIMIZED_BEAM_SEARCH) {
+                        // _bookkeep_optimized_beam_search(
+                        // 	ctx,
+                        // 	n_decoders_cur, n_decoders, cur,
+                        // 	reference_transcript_tokens,
+                        // 	cur_token_idx_in_reference_prompt,
+                        // 	n_decoders_fallback_flag
+                        // );
+                        _bookkeep_optimized_beam_search(
+                            ctx_cpu,
+                            n_decoders_cur, n_decoders, cur,
+                            reference_transcript_tokens,
+                            cur_token_idx_in_reference_prompt,
+                            n_decoders_fallback_flag
+                        );
+                        // then we follow the prompting stage to copy the decoder stage to other decoders
+                        if (n_decoders_fallback_flag == 1) {
+                            for (int j = 1; j < n_decoders_cur; ++j) {
+                                //auto & decoder = state->decoders[j];
+                                auto & decoder_tmp = state_cpu->decoders[j];
+                                //whisper_kv_cache_seq_cp(state->kv_self, 0, j, -1, -1);
+                                whisper_kv_cache_seq_cp(state_cpu->kv_self, 0, j, -1, -1);
+
+                                // memcpy(decoder.probs.data(),    state->decoders[0].probs.data(),    decoder.probs.size()*sizeof(decoder.probs[0]));
+                                // memcpy(decoder.logits.data(),   state->decoders[0].logits.data(),   decoder.logits.size()*sizeof(decoder.logits[0]));
+                                // memcpy(decoder.logprobs.data(), state->decoders[0].logprobs.data(), decoder.logprobs.size()*sizeof(decoder.logprobs[0]));
+
+                                memcpy(decoder_tmp.probs.data(),    state_cpu->decoders[0].probs.data(),    decoder_tmp.probs.size()*sizeof(decoder_tmp.probs[0]));
+                                memcpy(decoder_tmp.logits.data(),   state_cpu->decoders[0].logits.data(),   decoder_tmp.logits.size()*sizeof(decoder_tmp.logits[0]));
+                                memcpy(decoder_tmp.logprobs.data(), state_cpu->decoders[0].logprobs.data(), decoder_tmp.logprobs.size()*sizeof(decoder_tmp.logprobs[0]));
+                            }
+                            n_decoders_fallback_flag = 2;
+                        }
+                        
+                    }
+                    while (cur_c < all_beam_candidates.size() && whisper_sequence_tokens_equal(all_beam_candidates[cur_c].sequence, cur.sequence) && i > 0) {
+                        ++cur_c;
+                    }
+
+                    decoder.seek_delta = cur.seek_delta;
+                    decoder.has_ts     = cur.has_ts;
+                    decoder.sequence   = cur.sequence;
+                    decoder.grammar    = cur.grammar;
+
+                    //whisper_kv_cache_seq_cp(state->kv_self, cur.decoder_idx, WHISPER_MAX_DECODERS + j, -1, -1);
+                    whisper_kv_cache_seq_cp(state_cpu->kv_self, cur.decoder_idx, WHISPER_MAX_DECODERS + j, -1, -1);
+
+                    WHISPER_LOG_DEBUG("%s: beam search: decoder %d: from decoder %d: token = %10s, plog = %8.5f, sum_logprobs = %8.5f\n",
+                            __func__, j, cur.decoder_idx, ctx->vocab.id_to_token.at(decoder.sequence.tokens.back().id).c_str(), decoder.sequence.tokens.back().plog, decoder.sequence.sum_logprobs_all);
+                }
+
+                for (int j = 0; j < n_decoders_cur; ++j) {
+                    //auto & decoder = state->decoders[j];
+                    auto & decoder = state_cpu->decoders[j];
+
+                    if (decoder.completed || decoder.failed) {
+                        continue;
+                    }
+
+                    // whisper_kv_cache_seq_rm(state->kv_self, j,                           -1, -1);
+                    // whisper_kv_cache_seq_cp(state->kv_self, WHISPER_MAX_DECODERS + j, j, -1, -1);
+                    // whisper_kv_cache_seq_rm(state->kv_self, WHISPER_MAX_DECODERS + j,    -1, -1);
+
+                    whisper_kv_cache_seq_rm(state_cpu->kv_self, j,                           -1, -1);
+                    whisper_kv_cache_seq_cp(state_cpu->kv_self, WHISPER_MAX_DECODERS + j, j, -1, -1);
+                    whisper_kv_cache_seq_rm(state_cpu->kv_self, WHISPER_MAX_DECODERS + j,    -1, -1);
+                }
+            }
+
+            // update the decoder state
+            // - check if the sequence is completed
+            // - check if the sequence is failed
+            // - update sliding window based on timestamp tokens
+            for (int j = 0; j < n_decoders_cur; ++j) {
+                //auto & decoder = state->decoders[j];
+                auto & decoder = state_cpu->decoders[j];
+                if (decoder.completed || decoder.failed) {
+                    continue;
+                }
+
+                auto & has_ts     = decoder.has_ts;
+                auto & failed     = decoder.failed;
+                auto & completed  = decoder.completed;
+                auto & seek_delta = decoder.seek_delta;
+                auto & result_len = decoder.sequence.result_len;
+
+                {
+                    const auto & token = decoder.sequence.tokens.back();
+
+                    // timestamp token - update sliding window
+                    if (token.id > whisper_token_beg(ctx)) {
+                        const int seek_delta_new = 2*(token.id - whisper_token_beg(ctx));
+
+                        // do not allow to go back in time
+                        if (has_ts && seek_delta > seek_delta_new && result_len < i) {
+                            WHISPER_LOG_DEBUG("%s: decoder %d: failed due to seek_delta (%d > %d)\n", __func__, j, seek_delta, seek_delta_new);
+                            failed = true; // TODO: maybe this is not a failure ?
+                            continue;
+                        }
+
+                        seek_delta = seek_delta_new;
+                        result_len = i + 1;
+                        has_ts = true;
+                    }
+
+                    whisper_grammar_accept_token(*ctx, decoder.grammar, token.id);
+
+                    {
+                        const auto tt = token.pt > 0.10 ? ctx->vocab.id_to_token.at(token.tid) : "[?]";
+                        WHISPER_LOG_DEBUG("%s: id = %3d, decoder = %d, token = %6d, p = %6.3f, ts = %10s, %6.3f, result_len = %4d '%s'\n",
+                                __func__, i, j, token.id, token.p, tt.c_str(), token.pt, result_len, ctx->vocab.id_to_token.at(token.id).c_str());
+                    }
+
+                    // end of segment
+                    if (token.id == whisper_token_eot(ctx) ||               // end of text token
+                        (params.max_tokens > 0 && i >= params.max_tokens) || // max tokens per segment reached
+                        (has_ts && seek + seek_delta + 100 >= seek_end)      // end of audio reached
+                        ) {
+                        if (result_len == 0 && !params.no_timestamps) {
+                            if (seek + seek_delta + 100 >= seek_end) {
+                                result_len = i + 1;
+                            } else {
+                                WHISPER_LOG_DEBUG("%s: decoder %d failed (result_len = 0)\n", __func__, j);
+                                failed = true;
+                                continue;
+                            }
+                        }
+
+                        if (params.single_segment || params.no_timestamps) {
+                            result_len = i + 1;
+                            seek_delta = 100*WHISPER_CHUNK_SIZE;
+                        }
+
+                        WHISPER_LOG_DEBUG("%s: decoder %d completed\n", __func__, j);
+                        completed = true;
+                        continue;
+                    }
+
+                    // TESTS: if no tensors are loaded, it means we are running tests
+                    if (ctx->model.n_loaded == 0) {
+                        seek_delta = 100*WHISPER_CHUNK_SIZE;
+                        completed = true;
+                        continue;
                     }
                 }
 
-                WHISPER_LOG_DEBUG("%s: current decoders number %d\n",
-                                __func__, n_decoders_cur);
-                // sampling: for each decoder, getting the next token it predicts
+                // sometimes, the decoding can get stuck in a repetition loop
+                // this is an attempt to mitigate such cases - we flag the decoding as failed and use a fallback strategy
+                if (i == n_max - 1 && (result_len == 0 || seek_delta < 100*WHISPER_CHUNK_SIZE/2)) {
+                    WHISPER_LOG_INFO("%s: decoder %d: failed due to repetition loop\n", __func__, j);
+                    failed = true;
+                    continue;
+                }
+            }
+
+            // check if all decoders have finished (i.e. completed or failed)
+            {
+                bool completed_all = true;
+
+                for (int j = 0; j < n_decoders_cur; ++j) {
+                    //auto & decoder = state->decoders[j];
+                    auto & decoder = state_cpu->decoders[j];
+                    if (decoder.completed || decoder.failed) {
+                        continue;
+                    }
+
+                    completed_all = false;
+                }
+
+                if (completed_all) {
+                    break;
+                }
+            }
+
+            state->t_sample_us += ggml_time_us() - t_start_sample_us;
+
+            // obtain logits for the next token
+            {
+                //auto & batch = state->batch;
+                auto & batch = state_cpu->batch;
+                batch.n_tokens = 0;
+
+                const int n_past = prompt.size() + i;
+
+                for (int j = 0; j < n_decoders_cur; ++j) {
+                    //auto & decoder = state->decoders[j];
+                    auto & decoder = state_cpu->decoders[j];
+                    if (decoder.failed || decoder.completed) {
+                        continue;
+                    }
+
+                    //WHISPER_LOG_DEBUG("%s: decoder %d: token %d, seek_delta %d\n", __func__, j, decoder.sequence.tokens.back().id, decoder.seek_delta);
+
+                    decoder.i_batch = batch.n_tokens;
+
+                    batch.token   [batch.n_tokens]    = decoder.sequence.tokens.back().id;
+                    batch.pos     [batch.n_tokens]    = n_past;
+                    batch.n_seq_id[batch.n_tokens]    = 1;
+                    batch.seq_id  [batch.n_tokens][0] = j;
+                    batch.logits  [batch.n_tokens]    = 1;
+                    batch.n_tokens++;
+                }
+
+                assert(batch.n_tokens > 0);
+
+                // if (!whisper_decode_internal(*ctx, *state, state->batch, params.n_threads, false, params.abort_callback, params.abort_callback_user_data)) {
+                //     WHISPER_LOG_ERROR("%s: failed to decode\n", __func__);
+                //     return -8;
+                // }
+
+                if (!whisper_decode_internal(*ctx_cpu, *state_cpu, state_cpu->batch, params.n_threads, false, params.abort_callback, params.abort_callback_user_data)) {
+                    WHISPER_LOG_ERROR("%s: failed to decode\n", __func__);
+                    return -8;
+                }
+
+                const int64_t t_start_sample_us = ggml_time_us();
+
                 // TODO: avoid memory allocations, optimize, avoid threads?
                 {
                     std::atomic<int> j_cur(0);
 
-                    auto get_next_token = [&]() {
+                    auto get_next_token_logit = [&]() {
                         while (true) {
                             const int j = j_cur.fetch_add(1);
 
@@ -7970,51 +8268,28 @@ int whisper_full_with_state_for_whisper_streaming(
 
                             //auto & decoder = state->decoders[j];
                             auto & decoder = state_cpu->decoders[j];
-
-                            if (decoder.completed || decoder.failed) {
+                            
+                            if (decoder.failed || decoder.completed) {
                                 continue;
-                                WHISPER_LOG_DEBUG("%s: decoder finished\n",
-                                __func__);
                             }
 
-                            switch (params.strategy) {
-                                case whisper_sampling_strategy::WHISPER_SAMPLING_GREEDY:
-                                    {
-                                        if (t_cur < 1e-6f) {
-                                            decoder.sequence.tokens.push_back(whisper_sample_token(*ctx, decoder, true));
-                                        } else {
-                                            decoder.sequence.tokens.push_back(whisper_sample_token(*ctx, decoder, false));
-                                        }
-
-                                        decoder.sequence.sum_logprobs_all += decoder.sequence.tokens.back().plog;
-                                    } break;
-                                case whisper_sampling_strategy::WHISPER_SAMPLING_BEAM_SEARCH:
-                                case whisper_sampling_strategy::WHIPSER_SAMPLING_OPTIMIZED_BEAM_SEARCH:
-                                    {
-                                        //const auto tokens_new = whisper_sample_token_topk(*ctx, decoder, params.beam_search.beam_size);
-                                        const auto tokens_new = whisper_sample_token_topk(*ctx_cpu, decoder, params.beam_search.beam_size);
-                                        for (const auto & token : tokens_new) {
-                                            beam_candidates_per_decoder[j].push_back({ j, decoder.seek_delta, decoder.has_ts, decoder.sequence, decoder.grammar, });
-                                            beam_candidates_per_decoder[j].back().sequence.tokens.push_back(token);
-                                            beam_candidates_per_decoder[j].back().sequence.sum_logprobs_all += token.plog;
-                                        }
-                                    } break;
-                            };
+                            //whisper_process_logits(*ctx, *state, decoder, params, t_cur);
+                            whisper_process_logits(*ctx_cpu, *state_cpu, decoder, params, t_cur);
                         }
                     };
 
                     const int n_threads = std::min(params.n_threads, n_decoders_cur);
 
                     if (n_threads == 1) {
-            			get_next_token();
+                        get_next_token_logit();
                     } else {
                         std::vector<std::thread> threads(n_threads - 1);
 
                         for (int t = 0; t < n_threads - 1; ++t) {
-                            threads[t] = std::thread(get_next_token);
+                            threads[t] = std::thread(get_next_token_logit);
                         }
 
-                        get_next_token();
+                        get_next_token_logit();
 
                         for (int t = 0; t < n_threads - 1; ++t) {
                             threads[t].join();
@@ -8022,533 +8297,227 @@ int whisper_full_with_state_for_whisper_streaming(
                     }
                 }
 
-                all_beam_candidates.clear();
-                for (const auto & bc : beam_candidates_per_decoder) {
-                    all_beam_candidates.insert(all_beam_candidates.end(), bc.begin(), bc.end());
-
-                    if (!bc.empty()) {
-                        state->n_sample += 1;
-                    }
-                }
-
-                // for beam-search, choose the top candidates and update the KV caches
-                if (params.strategy == whisper_sampling_strategy::WHISPER_SAMPLING_BEAM_SEARCH ||
-                    params.strategy == whisper_sampling_strategy::WHIPSER_SAMPLING_OPTIMIZED_BEAM_SEARCH) {
-                    std::sort(
-                            all_beam_candidates.begin(),
-                            all_beam_candidates.end(),
-                            [](const beam_candidate & a, const beam_candidate & b) {
-                        if (a.sequence.sum_logprobs_all != b.sequence.sum_logprobs_all) {
-                            // sort by sum_logprobs_all descending
-                            return a.sequence.sum_logprobs_all > b.sequence.sum_logprobs_all;
-                        }
-                        // if sum_logprobs_all are equal, sort by decoder_idx ascending
-                        return a.decoder_idx < b.decoder_idx;
-                    });
-
-                    uint32_t cur_c = 0;  // start from the best beam candidate sequence
-
-                    for (int j = 0; j < n_decoders_cur; ++j) {
-                        //auto & decoder = state->decoders[j];
-                        auto & decoder = state_cpu->decoders[j];
-                        if (decoder.completed || decoder.failed) {
-                            continue;
-                        }
-
-                        if (cur_c >= all_beam_candidates.size()) {
-                            cur_c = 0;
-                        }
-
-                        auto & cur = all_beam_candidates[cur_c];
-                        cur_c++;
-                        
-                        /*
-                        for beam reduce, check if the current new token diverge from the reference transcript
-                        if it diverge, we need to make the decoding fall back to beam search with beam size 5
-                        */
-					   	if (params.strategy == WHIPSER_SAMPLING_OPTIMIZED_BEAM_SEARCH) {
-							// _bookkeep_optimized_beam_search(
-							// 	ctx,
-							// 	n_decoders_cur, n_decoders, cur,
-							// 	reference_transcript_tokens,
-							// 	cur_token_idx_in_reference_prompt,
-							// 	n_decoders_fallback_flag
-							// );
-                            _bookkeep_optimized_beam_search(
-								ctx_cpu,
-								n_decoders_cur, n_decoders, cur,
-								reference_transcript_tokens,
-								cur_token_idx_in_reference_prompt,
-								n_decoders_fallback_flag
-							);
-							// then we follow the prompting stage to copy the decoder stage to other decoders
-                            if (n_decoders_fallback_flag == 1) {
-                                for (int j = 1; j < n_decoders_cur; ++j) {
-                                    //auto & decoder = state->decoders[j];
-                                    auto & decoder_tmp = state_cpu->decoders[j];
-                                    //whisper_kv_cache_seq_cp(state->kv_self, 0, j, -1, -1);
-                                    whisper_kv_cache_seq_cp(state_cpu->kv_self, 0, j, -1, -1);
-
-                                    // memcpy(decoder.probs.data(),    state->decoders[0].probs.data(),    decoder.probs.size()*sizeof(decoder.probs[0]));
-                                    // memcpy(decoder.logits.data(),   state->decoders[0].logits.data(),   decoder.logits.size()*sizeof(decoder.logits[0]));
-                                    // memcpy(decoder.logprobs.data(), state->decoders[0].logprobs.data(), decoder.logprobs.size()*sizeof(decoder.logprobs[0]));
-
-                                    memcpy(decoder_tmp.probs.data(),    state_cpu->decoders[0].probs.data(),    decoder_tmp.probs.size()*sizeof(decoder_tmp.probs[0]));
-                                    memcpy(decoder_tmp.logits.data(),   state_cpu->decoders[0].logits.data(),   decoder_tmp.logits.size()*sizeof(decoder_tmp.logits[0]));
-                                    memcpy(decoder_tmp.logprobs.data(), state_cpu->decoders[0].logprobs.data(), decoder_tmp.logprobs.size()*sizeof(decoder_tmp.logprobs[0]));
-                                }
-                                n_decoders_fallback_flag = 2;
-                            }
-							
-						}
-		                while (cur_c < all_beam_candidates.size() && whisper_sequence_tokens_equal(all_beam_candidates[cur_c].sequence, cur.sequence) && i > 0) {
-                            ++cur_c;
-                        }
-
-                        decoder.seek_delta = cur.seek_delta;
-                        decoder.has_ts     = cur.has_ts;
-                        decoder.sequence   = cur.sequence;
-                        decoder.grammar    = cur.grammar;
-
-                        //whisper_kv_cache_seq_cp(state->kv_self, cur.decoder_idx, WHISPER_MAX_DECODERS + j, -1, -1);
-                        whisper_kv_cache_seq_cp(state_cpu->kv_self, cur.decoder_idx, WHISPER_MAX_DECODERS + j, -1, -1);
-
-                        WHISPER_LOG_DEBUG("%s: beam search: decoder %d: from decoder %d: token = %10s, plog = %8.5f, sum_logprobs = %8.5f\n",
-                                __func__, j, cur.decoder_idx, ctx->vocab.id_to_token.at(decoder.sequence.tokens.back().id).c_str(), decoder.sequence.tokens.back().plog, decoder.sequence.sum_logprobs_all);
-                    }
-
-                    for (int j = 0; j < n_decoders_cur; ++j) {
-                        //auto & decoder = state->decoders[j];
-                        auto & decoder = state_cpu->decoders[j];
-
-                        if (decoder.completed || decoder.failed) {
-                            continue;
-                        }
-
-                        // whisper_kv_cache_seq_rm(state->kv_self, j,                           -1, -1);
-                        // whisper_kv_cache_seq_cp(state->kv_self, WHISPER_MAX_DECODERS + j, j, -1, -1);
-                        // whisper_kv_cache_seq_rm(state->kv_self, WHISPER_MAX_DECODERS + j,    -1, -1);
-
-                        whisper_kv_cache_seq_rm(state_cpu->kv_self, j,                           -1, -1);
-                        whisper_kv_cache_seq_cp(state_cpu->kv_self, WHISPER_MAX_DECODERS + j, j, -1, -1);
-                        whisper_kv_cache_seq_rm(state_cpu->kv_self, WHISPER_MAX_DECODERS + j,    -1, -1);
-                    }
-                }
-
-                // update the decoder state
-                // - check if the sequence is completed
-                // - check if the sequence is failed
-                // - update sliding window based on timestamp tokens
-                for (int j = 0; j < n_decoders_cur; ++j) {
-                    //auto & decoder = state->decoders[j];
-                    auto & decoder = state_cpu->decoders[j];
-                    if (decoder.completed || decoder.failed) {
-                        continue;
-                    }
-
-                    auto & has_ts     = decoder.has_ts;
-                    auto & failed     = decoder.failed;
-                    auto & completed  = decoder.completed;
-                    auto & seek_delta = decoder.seek_delta;
-                    auto & result_len = decoder.sequence.result_len;
-
-                    {
-                        const auto & token = decoder.sequence.tokens.back();
-
-                        // timestamp token - update sliding window
-                        if (token.id > whisper_token_beg(ctx)) {
-                            const int seek_delta_new = 2*(token.id - whisper_token_beg(ctx));
-
-                            // do not allow to go back in time
-                            if (has_ts && seek_delta > seek_delta_new && result_len < i) {
-                                WHISPER_LOG_DEBUG("%s: decoder %d: failed due to seek_delta (%d > %d)\n", __func__, j, seek_delta, seek_delta_new);
-                                failed = true; // TODO: maybe this is not a failure ?
-                                continue;
-                            }
-
-                            seek_delta = seek_delta_new;
-                            result_len = i + 1;
-                            has_ts = true;
-                        }
-
-                        whisper_grammar_accept_token(*ctx, decoder.grammar, token.id);
-
-#ifdef WHISPER_DEBUG
-                        {
-                            const auto tt = token.pt > 0.10 ? ctx->vocab.id_to_token.at(token.tid) : "[?]";
-                            WHISPER_LOG_DEBUG("%s: id = %3d, decoder = %d, token = %6d, p = %6.3f, ts = %10s, %6.3f, result_len = %4d '%s'\n",
-                                    __func__, i, j, token.id, token.p, tt.c_str(), token.pt, result_len, ctx->vocab.id_to_token.at(token.id).c_str());
-                        }
-#endif
-
-                        // end of segment
-                        if (token.id == whisper_token_eot(ctx) ||               // end of text token
-                           (params.max_tokens > 0 && i >= params.max_tokens) || // max tokens per segment reached
-                           (has_ts && seek + seek_delta + 100 >= seek_end)      // end of audio reached
-                           ) {
-                            if (result_len == 0 && !params.no_timestamps) {
-                                if (seek + seek_delta + 100 >= seek_end) {
-                                    result_len = i + 1;
-                                } else {
-                                    WHISPER_LOG_DEBUG("%s: decoder %d failed (result_len = 0)\n", __func__, j);
-                                    failed = true;
-                                    continue;
-                                }
-                            }
-
-                            if (params.single_segment || params.no_timestamps) {
-                                result_len = i + 1;
-                                seek_delta = 100*WHISPER_CHUNK_SIZE;
-                            }
-
-                            WHISPER_LOG_DEBUG("%s: decoder %d completed\n", __func__, j);
-                            completed = true;
-                            continue;
-                        }
-
-                        // TESTS: if no tensors are loaded, it means we are running tests
-                        if (ctx->model.n_loaded == 0) {
-                            seek_delta = 100*WHISPER_CHUNK_SIZE;
-                            completed = true;
-                            continue;
-                        }
-                    }
-
-                    // sometimes, the decoding can get stuck in a repetition loop
-                    // this is an attempt to mitigate such cases - we flag the decoding as failed and use a fallback strategy
-                    if (i == n_max - 1 && (result_len == 0 || seek_delta < 100*WHISPER_CHUNK_SIZE/2)) {
-                        WHISPER_LOG_INFO("%s: decoder %d: failed due to repetition loop\n", __func__, j);
-                        failed = true;
-                        continue;
-                    }
-                }
-
-                // check if all decoders have finished (i.e. completed or failed)
-                {
-                    bool completed_all = true;
-
-                    for (int j = 0; j < n_decoders_cur; ++j) {
-                        //auto & decoder = state->decoders[j];
-                        auto & decoder = state_cpu->decoders[j];
-                        if (decoder.completed || decoder.failed) {
-                            continue;
-                        }
-
-                        completed_all = false;
-                    }
-
-                    if (completed_all) {
-                        break;
-                    }
-                }
-
                 state->t_sample_us += ggml_time_us() - t_start_sample_us;
-
-                // obtain logits for the next token
-                {
-                    //auto & batch = state->batch;
-                    auto & batch = state_cpu->batch;
-                    batch.n_tokens = 0;
-
-                    const int n_past = prompt.size() + i;
-
-                    for (int j = 0; j < n_decoders_cur; ++j) {
-                        //auto & decoder = state->decoders[j];
-                        auto & decoder = state_cpu->decoders[j];
-                        if (decoder.failed || decoder.completed) {
-                            continue;
-                        }
-
-                        //WHISPER_LOG_DEBUG("%s: decoder %d: token %d, seek_delta %d\n", __func__, j, decoder.sequence.tokens.back().id, decoder.seek_delta);
-
-                        decoder.i_batch = batch.n_tokens;
-
-                        batch.token   [batch.n_tokens]    = decoder.sequence.tokens.back().id;
-                        batch.pos     [batch.n_tokens]    = n_past;
-                        batch.n_seq_id[batch.n_tokens]    = 1;
-                        batch.seq_id  [batch.n_tokens][0] = j;
-                        batch.logits  [batch.n_tokens]    = 1;
-                        batch.n_tokens++;
-                    }
-
-                    assert(batch.n_tokens > 0);
-
-                    // if (!whisper_decode_internal(*ctx, *state, state->batch, params.n_threads, false, params.abort_callback, params.abort_callback_user_data)) {
-                    //     WHISPER_LOG_ERROR("%s: failed to decode\n", __func__);
-                    //     return -8;
-                    // }
-
-                    if (!whisper_decode_internal(*ctx_cpu, *state_cpu, state_cpu->batch, params.n_threads, false, params.abort_callback, params.abort_callback_user_data)) {
-                        WHISPER_LOG_ERROR("%s: failed to decode\n", __func__);
-                        return -8;
-                    }
-
-                    const int64_t t_start_sample_us = ggml_time_us();
-
-                    // TODO: avoid memory allocations, optimize, avoid threads?
-                    {
-                        std::atomic<int> j_cur(0);
-
-                        auto get_next_token_logit = [&]() {
-                            while (true) {
-                                const int j = j_cur.fetch_add(1);
-
-                                if (j >= n_decoders_cur) {
-                                    break;
-                                }
-
-                                //auto & decoder = state->decoders[j];
-                                auto & decoder = state_cpu->decoders[j];
-                                
-                                if (decoder.failed || decoder.completed) {
-                                    continue;
-                                }
-
-                                //whisper_process_logits(*ctx, *state, decoder, params, t_cur);
-                                whisper_process_logits(*ctx_cpu, *state_cpu, decoder, params, t_cur);
-                            }
-                        };
-
-                        const int n_threads = std::min(params.n_threads, n_decoders_cur);
-
-                        if (n_threads == 1) {
-                            get_next_token_logit();
-                        } else {
-                            std::vector<std::thread> threads(n_threads - 1);
-
-                            for (int t = 0; t < n_threads - 1; ++t) {
-                                threads[t] = std::thread(get_next_token_logit);
-                            }
-
-                            get_next_token_logit();
-
-                            for (int t = 0; t < n_threads - 1; ++t) {
-                                threads[t].join();
-                            }
-                        }
-                    }
-
-                    state->t_sample_us += ggml_time_us() - t_start_sample_us;
-                }
             }
-            // end decoding rounds, each decoder now has a sequence of predicted tokens
-
-
-            // rank the resulting sequences and select the best one
-            {
-                double best_score = -INFINITY;
-
-                for (int j = 0; j < n_decoders_cur; ++j) {
-                    //auto & decoder = state->decoders[j];
-                    auto & decoder = state_cpu->decoders[j];
-                    if (decoder.failed) {
-                        continue;
-                    }
-
-                    decoder.sequence.tokens.resize(decoder.sequence.result_len);
-                    whisper_sequence_score(params, decoder.sequence);
-
-                    WHISPER_LOG_DEBUG("%s: decoder %2d: score = %8.5f, result_len = %3d, avg_logprobs = %8.5f, entropy = %8.5f\n",
-                            __func__, j, decoder.sequence.score, decoder.sequence.result_len, decoder.sequence.avg_logprobs, decoder.sequence.entropy);
-
-                    if (decoder.sequence.result_len > 32 && decoder.sequence.entropy < params.entropy_thold) {
-                        WHISPER_LOG_DEBUG("%s: decoder %2d: failed due to entropy %8.5f < %8.5f\n",
-                                __func__, j, decoder.sequence.entropy, params.entropy_thold);
-
-                        decoder.failed = true;
-                        state->n_fail_h++;
-
-                        continue;
-                    }
-
-                    if (best_score < decoder.sequence.score) {
-                        best_score = decoder.sequence.score;
-                        best_decoder_id = j;
-                    }
-                }
-
-                WHISPER_LOG_DEBUG("%s: best decoder = %d\n", __func__, best_decoder_id);
-            }
-
-            bool success = true;
-
-            // was the decoding successful for the current temperature?
-            // do fallback only if:
-            // - we are not at the last temperature
-            if (it != (int) temperatures.size() - 1) {
-                //const auto & decoder = state->decoders[best_decoder_id];
-                const auto & decoder = state_cpu->decoders[best_decoder_id];
-                if (decoder.failed || decoder.sequence.avg_logprobs < params.logprob_thold) {
-                    WHISPER_LOG_DEBUG("%s: failed due to avg_logprobs %8.5f < %8.5f\n", __func__, decoder.sequence.avg_logprobs, params.logprob_thold);
-                    success = false;
-                    state->n_fail_p++;
-                }
-            }
-
-            if (success) {
-                //for (auto & token : ctx->decoders[best_decoder_id].sequence.tokens) {
-                //    WHISPER_LOG_DEBUG("%s: token = %d, p = %6.3f, pt = %6.3f, ts = %s, str = %s\n", __func__, token.id, token.p, token.pt, ctx->vocab.id_to_token.at(token.tid).c_str(), ctx->vocab.id_to_token.at(token.id).c_str());
-                //}
-
-                break;
-            }
-
-            WHISPER_LOG_DEBUG("\n%s: failed to decode with temperature = %.2f\n", __func__, t_cur);
         }
+        // end decoding rounds, each decoder now has a sequence of predicted tokens
 
-        // output results through a user-provided callback
+
+        // rank the resulting sequences and select the best one
         {
-            //const auto & best_decoder = state->decoders[best_decoder_id];
-            const auto & best_decoder = state_cpu->decoders[best_decoder_id];
+            double best_score = -INFINITY;
 
-            const auto seek_delta = best_decoder.seek_delta;
-            const auto result_len = best_decoder.sequence.result_len;
-
-            const auto & tokens_cur = best_decoder.sequence.tokens;
-
-            // [EXPERIMENTAL] Token-level timestamps with DTW
-            //const auto n_segments_before = state->result_all.size();
-            const auto n_segments_before = state_cpu->result_all.size();
-
-            //WHISPER_LOG_DEBUG("prompt_init.size() = %d, prompt.size() = %d, result_len = %d, seek_delta = %d\n", prompt_init.size(), prompt.size(), result_len, seek_delta);
-
-            // update prompt_past
-            prompt_past.clear();
-            if (prompt.front() == whisper_token_prev(ctx)) {
-                prompt_past.insert(prompt_past.end(), prompt.begin() + 1, prompt.end() - prompt_init.size());
-            }
-
-            for (int i = 0; i < result_len; ++i) {
-                prompt_past.push_back(tokens_cur[i].id);
-            }
-
-            if (!tokens_cur.empty() && ctx->model.n_loaded > 0) {
-                int  i0 = 0;
-                auto t0 = seek + 2*(tokens_cur.front().tid - whisper_token_beg(ctx));
-
-                std::string text;
-                bool speaker_turn_next = false;
-
-                for (int i = 0; i < (int) tokens_cur.size(); i++) {
-                    //printf("%s: %18s %6.3f %18s %6.3f\n", __func__,
-                    //        ctx->vocab.id_to_token[tokens_cur[i].id].c_str(), tokens_cur[i].p,
-                    //        ctx->vocab.id_to_token[tokens_cur[i].tid].c_str(), tokens_cur[i].pt);
-
-                    if (params.print_special || tokens_cur[i].id < whisper_token_eot(ctx)) {
-                        text += whisper_token_to_str(ctx, tokens_cur[i].id);
-                    }
-
-                    // [TDRZ] record if speaker turn was predicted after current segment
-                    if (params.tdrz_enable && tokens_cur[i].id == whisper_token_solm(ctx)) {
-                        speaker_turn_next = true;
-                    }
-
-                    if (tokens_cur[i].id > whisper_token_beg(ctx) && !params.single_segment) {
-                        const auto t1 = seek + 2*(tokens_cur[i].tid - whisper_token_beg(ctx));
-
-                        if (!text.empty()) {
-                            const auto tt0 = params.speed_up ? 2*t0 : t0;
-                            const auto tt1 = params.speed_up ? 2*t1 : t1;
-
-                            if (params.print_realtime) {
-                                if (params.print_timestamps) {
-                                    printf("[%s --> %s]  %s\n", to_timestamp(tt0).c_str(), to_timestamp(tt1).c_str(), text.c_str());
-                                } else {
-                                    printf("%s", text.c_str());
-                                    fflush(stdout);
-                                }
-                            }
-
-                            //printf("tt0 = %d, tt1 = %d, text = %s, token = %s, token_id = %d, tid = %d\n", tt0, tt1, text.c_str(), ctx->vocab.id_to_token[tokens_cur[i].id].c_str(), tokens_cur[i].id, tokens_cur[i].tid);
-
-                            result_all.push_back({ tt0, tt1, text, {}, speaker_turn_next });
-                            for (int j = i0; j <= i; j++) {
-                                result_all.back().tokens.push_back(tokens_cur[j]);
-                            }
-
-                            int n_new = 1;
-
-                            if (params.token_timestamps) {
-                                whisper_exp_compute_token_level_timestamps(
-                                        *ctx, *state, result_all.size() - 1, params.thold_pt, params.thold_ptsum);
-
-                                if (params.max_len > 0) {
-                                    n_new = whisper_wrap_segment(*ctx, *state, params.max_len, params.split_on_word);
-                                }
-                            }
-                            if (params.new_segment_callback) {
-                                params.new_segment_callback(ctx, state, n_new, params.new_segment_callback_user_data);
-                            }
-                        }
-                        text = "";
-                        while (i < (int) tokens_cur.size() && tokens_cur[i].id > whisper_token_beg(ctx)) {
-                            i++;
-                        }
-                        i--;
-                        t0 = t1;
-                        i0 = i + 1;
-                        speaker_turn_next = false;
-                    }
+            for (int j = 0; j < n_decoders_cur; ++j) {
+                //auto & decoder = state->decoders[j];
+                auto & decoder = state_cpu->decoders[j];
+                if (decoder.failed) {
+                    continue;
                 }
 
-                if (!text.empty()) {
-                    const auto t1 = seek + seek_delta;
+                decoder.sequence.tokens.resize(decoder.sequence.result_len);
+                whisper_sequence_score(params, decoder.sequence);
 
-                    const auto tt0 = params.speed_up ? 2*t0 : t0;
-                    const auto tt1 = params.speed_up ? 2*t1 : t1;
+                WHISPER_LOG_DEBUG("%s: decoder %2d: score = %8.5f, result_len = %3d, avg_logprobs = %8.5f, entropy = %8.5f\n",
+                        __func__, j, decoder.sequence.score, decoder.sequence.result_len, decoder.sequence.avg_logprobs, decoder.sequence.entropy);
 
-                    if (params.print_realtime) {
-                        if (params.print_timestamps) {
-                            printf("[%s --> %s]  %s\n", to_timestamp(tt0).c_str(), to_timestamp(tt1).c_str(), text.c_str());
-                        } else {
-                            printf("%s", text.c_str());
-                            fflush(stdout);
-                        }
-                    }
+                if (decoder.sequence.result_len > 32 && decoder.sequence.entropy < params.entropy_thold) {
+                    WHISPER_LOG_DEBUG("%s: decoder %2d: failed due to entropy %8.5f < %8.5f\n",
+                            __func__, j, decoder.sequence.entropy, params.entropy_thold);
 
-                    result_all.push_back({ tt0, tt1, text, {} , speaker_turn_next });
-                    for (int j = i0; j < (int) tokens_cur.size(); j++) {
-                        result_all.back().tokens.push_back(tokens_cur[j]);
-                    }
+                    decoder.failed = true;
+                    state->n_fail_h++;
 
-                    int n_new = 1;
+                    continue;
+                }
 
-                    if (params.token_timestamps) {
-                        whisper_exp_compute_token_level_timestamps(
-                                *ctx, *state, result_all.size() - 1, params.thold_pt, params.thold_ptsum);
-
-                        if (params.max_len > 0) {
-                            n_new = whisper_wrap_segment(*ctx, *state, params.max_len, params.split_on_word);
-                        }
-                    }
-                    if (params.new_segment_callback) {
-                        //params.new_segment_callback(ctx, state, n_new, params.new_segment_callback_user_data);
-                        params.new_segment_callback(ctx_cpu, state_cpu, n_new, params.new_segment_callback_user_data);
-                    }
+                if (best_score < decoder.sequence.score) {
+                    best_score = decoder.sequence.score;
+                    best_decoder_id = j;
                 }
             }
 
-            // FIXME: will timestamp offsets be correct?
-            // [EXPERIMENTAL] Token-level timestamps with DTW
-            {
-                //const auto n_segments = state->result_all.size() - n_segments_before;
-                const auto n_segments = state_cpu->result_all.size() - n_segments_before;
-                WHISPER_LOG_INFO("%s: the n_segments for dtw entering is %d\n", __func__, n_segments);
-                if (ctx->params.dtw_token_timestamps && n_segments) {
-                    const int n_frames = std::min(std::min(WHISPER_CHUNK_SIZE * 100, seek_delta), seek_end - seek);
-                    // whisper_exp_compute_token_level_timestamps_dtw(
-                    //         ctx, state, params, result_all.size() - n_segments, n_segments, seek, n_frames, 7, params.n_threads);
-                    whisper_exp_compute_token_level_timestamps_dtw(
-                            ctx_cpu, state_cpu, params, result_all.size() - n_segments, n_segments, seek, n_frames, 7, params.n_threads);
-                }
-            }
-
-            // update audio window
-            seek += seek_delta;
-
-            WHISPER_LOG_DEBUG("seek = %d, seek_delta = %d\n", seek, seek_delta);
+            WHISPER_LOG_DEBUG("%s: best decoder = %d\n", __func__, best_decoder_id);
         }
+
+        bool success = true;
+
+        // was the decoding successful for the current temperature?
+        // do fallback only if:
+        // - we are not at the last temperature
+        if (it != (int) temperatures.size() - 1) {
+            //const auto & decoder = state->decoders[best_decoder_id];
+            const auto & decoder = state_cpu->decoders[best_decoder_id];
+            if (decoder.failed || decoder.sequence.avg_logprobs < params.logprob_thold) {
+                WHISPER_LOG_DEBUG("%s: failed due to avg_logprobs %8.5f < %8.5f\n", __func__, decoder.sequence.avg_logprobs, params.logprob_thold);
+                success = false;
+                state->n_fail_p++;
+            }
+        }
+
+        if (success) {
+            //for (auto & token : ctx->decoders[best_decoder_id].sequence.tokens) {
+            //    WHISPER_LOG_DEBUG("%s: token = %d, p = %6.3f, pt = %6.3f, ts = %s, str = %s\n", __func__, token.id, token.p, token.pt, ctx->vocab.id_to_token.at(token.tid).c_str(), ctx->vocab.id_to_token.at(token.id).c_str());
+            //}
+
+            break;
+        }
+
+        WHISPER_LOG_DEBUG("\n%s: failed to decode with temperature = %.2f\n", __func__, t_cur);
     }
+
+    // output results through a user-provided callback
+    {
+        //const auto & best_decoder = state->decoders[best_decoder_id];
+        const auto & best_decoder = state_cpu->decoders[best_decoder_id];
+
+        const auto seek_delta = best_decoder.seek_delta;
+        const auto result_len = best_decoder.sequence.result_len;
+
+        const auto & tokens_cur = best_decoder.sequence.tokens;
+
+        // [EXPERIMENTAL] Token-level timestamps with DTW
+        //const auto n_segments_before = state->result_all.size();
+        const auto n_segments_before = state_cpu->result_all.size();
+
+        //WHISPER_LOG_DEBUG("prompt_init.size() = %d, prompt.size() = %d, result_len = %d, seek_delta = %d\n", prompt_init.size(), prompt.size(), result_len, seek_delta);
+
+        // update prompt_past
+        prompt_past.clear();
+        if (prompt.front() == whisper_token_prev(ctx)) {
+            prompt_past.insert(prompt_past.end(), prompt.begin() + 1, prompt.end() - prompt_init.size());
+        }
+
+        for (int i = 0; i < result_len; ++i) {
+            prompt_past.push_back(tokens_cur[i].id);
+        }
+
+        if (!tokens_cur.empty() && ctx->model.n_loaded > 0) {
+            int  i0 = 0;
+            auto t0 = seek + 2*(tokens_cur.front().tid - whisper_token_beg(ctx));
+
+            std::string text;
+            bool speaker_turn_next = false;
+
+            for (int i = 0; i < (int) tokens_cur.size(); i++) {
+                //printf("%s: %18s %6.3f %18s %6.3f\n", __func__,
+                //        ctx->vocab.id_to_token[tokens_cur[i].id].c_str(), tokens_cur[i].p,
+                //        ctx->vocab.id_to_token[tokens_cur[i].tid].c_str(), tokens_cur[i].pt);
+
+                if (params.print_special || tokens_cur[i].id < whisper_token_eot(ctx)) {
+                    text += whisper_token_to_str(ctx, tokens_cur[i].id);
+                }
+
+                // [TDRZ] record if speaker turn was predicted after current segment
+                if (params.tdrz_enable && tokens_cur[i].id == whisper_token_solm(ctx)) {
+                    speaker_turn_next = true;
+                }
+
+                if (tokens_cur[i].id > whisper_token_beg(ctx) && !params.single_segment) {
+                    const auto t1 = seek + 2*(tokens_cur[i].tid - whisper_token_beg(ctx));
+
+                    if (!text.empty()) {
+                        const auto tt0 = params.speed_up ? 2*t0 : t0;
+                        const auto tt1 = params.speed_up ? 2*t1 : t1;
+
+                        if (params.print_realtime) {
+                            if (params.print_timestamps) {
+                                printf("[%s --> %s]  %s\n", to_timestamp(tt0).c_str(), to_timestamp(tt1).c_str(), text.c_str());
+                            } else {
+                                printf("%s", text.c_str());
+                                fflush(stdout);
+                            }
+                        }
+
+                        //printf("tt0 = %d, tt1 = %d, text = %s, token = %s, token_id = %d, tid = %d\n", tt0, tt1, text.c_str(), ctx->vocab.id_to_token[tokens_cur[i].id].c_str(), tokens_cur[i].id, tokens_cur[i].tid);
+
+                        result_all.push_back({ tt0, tt1, text, {}, speaker_turn_next });
+                        for (int j = i0; j <= i; j++) {
+                            result_all.back().tokens.push_back(tokens_cur[j]);
+                        }
+
+                        int n_new = 1;
+
+                        if (params.token_timestamps) {
+                            whisper_exp_compute_token_level_timestamps(
+                                    *ctx, *state, result_all.size() - 1, params.thold_pt, params.thold_ptsum);
+
+                            if (params.max_len > 0) {
+                                n_new = whisper_wrap_segment(*ctx, *state, params.max_len, params.split_on_word);
+                            }
+                        }
+                        if (params.new_segment_callback) {
+                            params.new_segment_callback(ctx, state, n_new, params.new_segment_callback_user_data);
+                        }
+                    }
+                    text = "";
+                    while (i < (int) tokens_cur.size() && tokens_cur[i].id > whisper_token_beg(ctx)) {
+                        i++;
+                    }
+                    i--;
+                    t0 = t1;
+                    i0 = i + 1;
+                    speaker_turn_next = false;
+                }
+            }
+
+            if (!text.empty()) {
+                const auto t1 = seek + seek_delta;
+
+                const auto tt0 = params.speed_up ? 2*t0 : t0;
+                const auto tt1 = params.speed_up ? 2*t1 : t1;
+
+                if (params.print_realtime) {
+                    if (params.print_timestamps) {
+                        printf("[%s --> %s]  %s\n", to_timestamp(tt0).c_str(), to_timestamp(tt1).c_str(), text.c_str());
+                    } else {
+                        printf("%s", text.c_str());
+                        fflush(stdout);
+                    }
+                }
+
+                result_all.push_back({ tt0, tt1, text, {} , speaker_turn_next });
+                for (int j = i0; j < (int) tokens_cur.size(); j++) {
+                    result_all.back().tokens.push_back(tokens_cur[j]);
+                }
+
+                int n_new = 1;
+
+                if (params.token_timestamps) {
+                    whisper_exp_compute_token_level_timestamps(
+                            *ctx, *state, result_all.size() - 1, params.thold_pt, params.thold_ptsum);
+
+                    if (params.max_len > 0) {
+                        n_new = whisper_wrap_segment(*ctx, *state, params.max_len, params.split_on_word);
+                    }
+                }
+                if (params.new_segment_callback) {
+                    //params.new_segment_callback(ctx, state, n_new, params.new_segment_callback_user_data);
+                    params.new_segment_callback(ctx_cpu, state_cpu, n_new, params.new_segment_callback_user_data);
+                }
+            }
+        }
+
+        // FIXME: will timestamp offsets be correct?
+        // [EXPERIMENTAL] Token-level timestamps with DTW
+        {
+            //const auto n_segments = state->result_all.size() - n_segments_before;
+            const auto n_segments = state_cpu->result_all.size() - n_segments_before;
+            WHISPER_LOG_INFO("%s: the n_segments for dtw entering is %d\n", __func__, n_segments);
+            if (ctx->params.dtw_token_timestamps && n_segments) {
+                const int n_frames = std::min(std::min(WHISPER_CHUNK_SIZE * 100, seek_delta), seek_end - seek);
+                // whisper_exp_compute_token_level_timestamps_dtw(
+                //         ctx, state, params, result_all.size() - n_segments, n_segments, seek, n_frames, 7, params.n_threads);
+                whisper_exp_compute_token_level_timestamps_dtw(
+                        ctx_cpu, state_cpu, params, result_all.size() - n_segments, n_segments, seek, n_frames, 7, params.n_threads);
+            }
+        }
+
+        // update audio window
+        seek += seek_delta;
+
+        WHISPER_LOG_DEBUG("seek = %d, seek_delta = %d\n", seek, seek_delta);
+    }
+    
     state->result_all = state_cpu->result_all;
     return 0;
 }
