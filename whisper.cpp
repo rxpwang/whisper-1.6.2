@@ -8327,159 +8327,159 @@ int whisper_full_with_state_for_whisper_streaming(
     }
 
     // output results through a user-provided callback
-    {
-        //const auto & best_decoder = state->decoders[best_decoder_id];
-        const auto & best_decoder = state_cpu->decoders[best_decoder_id];
-
-        const auto seek_delta = best_decoder.seek_delta;
-        const auto result_len = best_decoder.sequence.result_len;
-
-        const auto & tokens_cur = best_decoder.sequence.tokens;
-
-        // [EXPERIMENTAL] Token-level timestamps with DTW
-        //const auto n_segments_before = state->result_all.size();
-        const auto n_segments_before = state_cpu->result_all.size();
-
-        //WHISPER_LOG_DEBUG("prompt_init.size() = %d, prompt.size() = %d, result_len = %d, seek_delta = %d\n", prompt_init.size(), prompt.size(), result_len, seek_delta);
-
-        // update prompt_past
-        prompt_past.clear();
-        if (prompt.front() == whisper_token_prev(ctx)) {
-            prompt_past.insert(prompt_past.end(), prompt.begin() + 1, prompt.end() - prompt_init.size());
-        }
-
-        for (int i = 0; i < result_len; ++i) {
-            prompt_past.push_back(tokens_cur[i].id);
-        }
-
-        if (!tokens_cur.empty() && ctx->model.n_loaded > 0) {
-            int  i0 = 0;
-            auto t0 = seek + 2*(tokens_cur.front().tid - whisper_token_beg(ctx));
-
-            std::string text;
-            bool speaker_turn_next = false;
-
-            for (int i = 0; i < (int) tokens_cur.size(); i++) {
-                //printf("%s: %18s %6.3f %18s %6.3f\n", __func__,
-                //        ctx->vocab.id_to_token[tokens_cur[i].id].c_str(), tokens_cur[i].p,
-                //        ctx->vocab.id_to_token[tokens_cur[i].tid].c_str(), tokens_cur[i].pt);
-
-                if (params.print_special || tokens_cur[i].id < whisper_token_eot(ctx)) {
-                    text += whisper_token_to_str(ctx, tokens_cur[i].id);
-                }
-
-                // [TDRZ] record if speaker turn was predicted after current segment
-                if (params.tdrz_enable && tokens_cur[i].id == whisper_token_solm(ctx)) {
-                    speaker_turn_next = true;
-                }
-
-                if (tokens_cur[i].id > whisper_token_beg(ctx) && !params.single_segment) {
-                    const auto t1 = seek + 2*(tokens_cur[i].tid - whisper_token_beg(ctx));
-
-                    if (!text.empty()) {
-                        const auto tt0 = params.speed_up ? 2*t0 : t0;
-                        const auto tt1 = params.speed_up ? 2*t1 : t1;
-
-                        if (params.print_realtime) {
-                            if (params.print_timestamps) {
-                                printf("[%s --> %s]  %s\n", to_timestamp(tt0).c_str(), to_timestamp(tt1).c_str(), text.c_str());
-                            } else {
-                                printf("%s", text.c_str());
-                                fflush(stdout);
-                            }
-                        }
-
-                        //printf("tt0 = %d, tt1 = %d, text = %s, token = %s, token_id = %d, tid = %d\n", tt0, tt1, text.c_str(), ctx->vocab.id_to_token[tokens_cur[i].id].c_str(), tokens_cur[i].id, tokens_cur[i].tid);
-
-                        result_all.push_back({ tt0, tt1, text, {}, speaker_turn_next });
-                        for (int j = i0; j <= i; j++) {
-                            result_all.back().tokens.push_back(tokens_cur[j]);
-                        }
-
-                        int n_new = 1;
-
-                        if (params.token_timestamps) {
-                            whisper_exp_compute_token_level_timestamps(
-                                    *ctx, *state, result_all.size() - 1, params.thold_pt, params.thold_ptsum);
-
-                            if (params.max_len > 0) {
-                                n_new = whisper_wrap_segment(*ctx, *state, params.max_len, params.split_on_word);
-                            }
-                        }
-                        if (params.new_segment_callback) {
-                            params.new_segment_callback(ctx, state, n_new, params.new_segment_callback_user_data);
-                        }
-                    }
-                    text = "";
-                    while (i < (int) tokens_cur.size() && tokens_cur[i].id > whisper_token_beg(ctx)) {
-                        i++;
-                    }
-                    i--;
-                    t0 = t1;
-                    i0 = i + 1;
-                    speaker_turn_next = false;
-                }
-            }
-
-            if (!text.empty()) {
-                const auto t1 = seek + seek_delta;
-
-                const auto tt0 = params.speed_up ? 2*t0 : t0;
-                const auto tt1 = params.speed_up ? 2*t1 : t1;
-
-                if (params.print_realtime) {
-                    if (params.print_timestamps) {
-                        printf("[%s --> %s]  %s\n", to_timestamp(tt0).c_str(), to_timestamp(tt1).c_str(), text.c_str());
-                    } else {
-                        printf("%s", text.c_str());
-                        fflush(stdout);
-                    }
-                }
-
-                result_all.push_back({ tt0, tt1, text, {} , speaker_turn_next });
-                for (int j = i0; j < (int) tokens_cur.size(); j++) {
-                    result_all.back().tokens.push_back(tokens_cur[j]);
-                }
-
-                int n_new = 1;
-
-                if (params.token_timestamps) {
-                    whisper_exp_compute_token_level_timestamps(
-                            *ctx, *state, result_all.size() - 1, params.thold_pt, params.thold_ptsum);
-
-                    if (params.max_len > 0) {
-                        n_new = whisper_wrap_segment(*ctx, *state, params.max_len, params.split_on_word);
-                    }
-                }
-                if (params.new_segment_callback) {
-                    //params.new_segment_callback(ctx, state, n_new, params.new_segment_callback_user_data);
-                    params.new_segment_callback(ctx_cpu, state_cpu, n_new, params.new_segment_callback_user_data);
-                }
-            }
-        }
-
-        // FIXME: will timestamp offsets be correct?
-        // [EXPERIMENTAL] Token-level timestamps with DTW
-        {
-            //const auto n_segments = state->result_all.size() - n_segments_before;
-            const auto n_segments = state_cpu->result_all.size() - n_segments_before;
-            WHISPER_LOG_INFO("%s: the n_segments for dtw entering is %d\n", __func__, n_segments);
-            if (ctx->params.dtw_token_timestamps && n_segments) {
-                const int n_frames = std::min(std::min(WHISPER_CHUNK_SIZE * 100, seek_delta), seek_end - seek);
-                // whisper_exp_compute_token_level_timestamps_dtw(
-                //         ctx, state, params, result_all.size() - n_segments, n_segments, seek, n_frames, 7, params.n_threads);
-                whisper_exp_compute_token_level_timestamps_dtw(
-                        ctx_cpu, state_cpu, params, result_all.size() - n_segments, n_segments, seek, n_frames, 7, params.n_threads);
-            }
-        }
-
-        // update audio window
-        seek += seek_delta;
-
-        WHISPER_LOG_DEBUG("seek = %d, seek_delta = %d\n", seek, seek_delta);
-    }
     
+    //const auto & best_decoder = state->decoders[best_decoder_id];
+    const auto & best_decoder = state_cpu->decoders[best_decoder_id];
+
+    const auto seek_delta = best_decoder.seek_delta;
+    const auto result_len = best_decoder.sequence.result_len;
+
+    const auto & tokens_cur = best_decoder.sequence.tokens;
+
+    // [EXPERIMENTAL] Token-level timestamps with DTW
+    //const auto n_segments_before = state->result_all.size();
+    const auto n_segments_before = state_cpu->result_all.size();
+
+    //WHISPER_LOG_DEBUG("prompt_init.size() = %d, prompt.size() = %d, result_len = %d, seek_delta = %d\n", prompt_init.size(), prompt.size(), result_len, seek_delta);
+
+    // update prompt_past
+    prompt_past.clear();
+    if (prompt.front() == whisper_token_prev(ctx)) {
+        prompt_past.insert(prompt_past.end(), prompt.begin() + 1, prompt.end() - prompt_init.size());
+    }
+
+    for (int i = 0; i < result_len; ++i) {
+        prompt_past.push_back(tokens_cur[i].id);
+    }
+
+    if (!tokens_cur.empty() && ctx->model.n_loaded > 0) {
+        int  i0 = 0;
+        auto t0 = seek + 2*(tokens_cur.front().tid - whisper_token_beg(ctx));
+
+        std::string text;
+        bool speaker_turn_next = false;
+
+        for (int i = 0; i < (int) tokens_cur.size(); i++) {
+            //printf("%s: %18s %6.3f %18s %6.3f\n", __func__,
+            //        ctx->vocab.id_to_token[tokens_cur[i].id].c_str(), tokens_cur[i].p,
+            //        ctx->vocab.id_to_token[tokens_cur[i].tid].c_str(), tokens_cur[i].pt);
+
+            if (params.print_special || tokens_cur[i].id < whisper_token_eot(ctx)) {
+                text += whisper_token_to_str(ctx, tokens_cur[i].id);
+            }
+
+            // [TDRZ] record if speaker turn was predicted after current segment
+            if (params.tdrz_enable && tokens_cur[i].id == whisper_token_solm(ctx)) {
+                speaker_turn_next = true;
+            }
+
+            if (tokens_cur[i].id > whisper_token_beg(ctx) && !params.single_segment) {
+                const auto t1 = seek + 2*(tokens_cur[i].tid - whisper_token_beg(ctx));
+
+                if (!text.empty()) {
+                    const auto tt0 = params.speed_up ? 2*t0 : t0;
+                    const auto tt1 = params.speed_up ? 2*t1 : t1;
+
+                    if (params.print_realtime) {
+                        if (params.print_timestamps) {
+                            printf("[%s --> %s]  %s\n", to_timestamp(tt0).c_str(), to_timestamp(tt1).c_str(), text.c_str());
+                        } else {
+                            printf("%s", text.c_str());
+                            fflush(stdout);
+                        }
+                    }
+
+                    //printf("tt0 = %d, tt1 = %d, text = %s, token = %s, token_id = %d, tid = %d\n", tt0, tt1, text.c_str(), ctx->vocab.id_to_token[tokens_cur[i].id].c_str(), tokens_cur[i].id, tokens_cur[i].tid);
+
+                    result_all.push_back({ tt0, tt1, text, {}, speaker_turn_next });
+                    for (int j = i0; j <= i; j++) {
+                        result_all.back().tokens.push_back(tokens_cur[j]);
+                    }
+
+                    int n_new = 1;
+
+                    if (params.token_timestamps) {
+                        whisper_exp_compute_token_level_timestamps(
+                                *ctx, *state, result_all.size() - 1, params.thold_pt, params.thold_ptsum);
+
+                        if (params.max_len > 0) {
+                            n_new = whisper_wrap_segment(*ctx, *state, params.max_len, params.split_on_word);
+                        }
+                    }
+                    if (params.new_segment_callback) {
+                        params.new_segment_callback(ctx, state, n_new, params.new_segment_callback_user_data);
+                    }
+                }
+                text = "";
+                while (i < (int) tokens_cur.size() && tokens_cur[i].id > whisper_token_beg(ctx)) {
+                    i++;
+                }
+                i--;
+                t0 = t1;
+                i0 = i + 1;
+                speaker_turn_next = false;
+            }
+        }
+
+        if (!text.empty()) {
+            const auto t1 = seek + seek_delta;
+
+            const auto tt0 = params.speed_up ? 2*t0 : t0;
+            const auto tt1 = params.speed_up ? 2*t1 : t1;
+
+            if (params.print_realtime) {
+                if (params.print_timestamps) {
+                    printf("[%s --> %s]  %s\n", to_timestamp(tt0).c_str(), to_timestamp(tt1).c_str(), text.c_str());
+                } else {
+                    printf("%s", text.c_str());
+                    fflush(stdout);
+                }
+            }
+
+            result_all.push_back({ tt0, tt1, text, {} , speaker_turn_next });
+            for (int j = i0; j < (int) tokens_cur.size(); j++) {
+                result_all.back().tokens.push_back(tokens_cur[j]);
+            }
+
+            int n_new = 1;
+
+            if (params.token_timestamps) {
+                whisper_exp_compute_token_level_timestamps(
+                        *ctx, *state, result_all.size() - 1, params.thold_pt, params.thold_ptsum);
+
+                if (params.max_len > 0) {
+                    n_new = whisper_wrap_segment(*ctx, *state, params.max_len, params.split_on_word);
+                }
+            }
+            if (params.new_segment_callback) {
+                //params.new_segment_callback(ctx, state, n_new, params.new_segment_callback_user_data);
+                params.new_segment_callback(ctx_cpu, state_cpu, n_new, params.new_segment_callback_user_data);
+            }
+        }
+    }
     state->result_all = state_cpu->result_all;
+    // FIXME: will timestamp offsets be correct?
+    // [EXPERIMENTAL] Token-level timestamps with DTW
+    {
+        //const auto n_segments = state->result_all.size() - n_segments_before;
+        const auto n_segments = state_cpu->result_all.size() - n_segments_before;
+        WHISPER_LOG_INFO("%s: the n_segments for dtw entering is %d\n", __func__, n_segments);
+        if (ctx->params.dtw_token_timestamps && n_segments) {
+            const int n_frames = std::min(std::min(WHISPER_CHUNK_SIZE * 100, seek_delta), seek_end - seek);
+            whisper_exp_compute_token_level_timestamps_dtw(
+                    ctx, state, params, result_all.size() - n_segments, n_segments, seek, n_frames, 7, params.n_threads);
+            // whisper_exp_compute_token_level_timestamps_dtw(
+            //         ctx_cpu, state_cpu, params, result_all.size() - n_segments, n_segments, seek, n_frames, 7, params.n_threads);
+        }
+    }
+
+    // update audio window
+    seek += seek_delta;
+
+    WHISPER_LOG_DEBUG("seek = %d, seek_delta = %d\n", seek, seek_delta);
+    
+    
+    //state->result_all = state_cpu->result_all;
     return 0;
 }
 
