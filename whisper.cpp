@@ -7868,25 +7868,6 @@ int whisper_full_with_state_for_whisper_streaming(
                 return -7;
             }
 
-            {
-                const int64_t t_start_sample_us = ggml_time_us();
-
-                state->decoders[0].i_batch = prompt.size() - 1;
-
-                whisper_process_logits(*ctx, *state, state->decoders[0], params, t_cur);
-
-                for (int j = 1; j < n_decoders_cur; ++j) {
-                    auto & decoder = state->decoders[j];
-
-                    whisper_kv_cache_seq_cp(state->kv_self, 0, j, -1, -1);
-
-                    memcpy(decoder.probs.data(),    state->decoders[0].probs.data(),    decoder.probs.size()*sizeof(decoder.probs[0]));
-                    memcpy(decoder.logits.data(),   state->decoders[0].logits.data(),   decoder.logits.size()*sizeof(decoder.logits[0]));
-                    memcpy(decoder.logprobs.data(), state->decoders[0].logprobs.data(), decoder.logprobs.size()*sizeof(decoder.logprobs[0]));
-                }
-
-                state->t_sample_us += ggml_time_us() - t_start_sample_us;
-            }
 
             // pipeline implementation: copy the prompt batch result to state_cpu
             state_cpu->logits = state->logits;
@@ -7911,7 +7892,7 @@ int whisper_full_with_state_for_whisper_streaming(
             }
         }
 
-        int n_max = whisper_n_text_ctx(ctx)/2 - 4;
+        int n_max = whisper_n_text_ctx(ctx_cpu)/2 - 4;
         n_max = (n_max < params.max_round_decode) ? n_max : params.max_round_decode;
         WHISPER_LOG_INFO("%s: max decode round: %d\n", __func__, n_max);
         
@@ -7954,9 +7935,9 @@ int whisper_full_with_state_for_whisper_streaming(
                             case whisper_sampling_strategy::WHISPER_SAMPLING_GREEDY:
                                 {
                                     if (t_cur < 1e-6f) {
-                                        decoder.sequence.tokens.push_back(whisper_sample_token(*ctx, decoder, true));
+                                        decoder.sequence.tokens.push_back(whisper_sample_token(*ctx_cpu, decoder, true));
                                     } else {
-                                        decoder.sequence.tokens.push_back(whisper_sample_token(*ctx, decoder, false));
+                                        decoder.sequence.tokens.push_back(whisper_sample_token(*ctx_cpu, decoder, false));
                                     }
 
                                     decoder.sequence.sum_logprobs_all += decoder.sequence.tokens.back().plog;
@@ -8000,7 +7981,7 @@ int whisper_full_with_state_for_whisper_streaming(
                 all_beam_candidates.insert(all_beam_candidates.end(), bc.begin(), bc.end());
 
                 if (!bc.empty()) {
-                    state->n_sample += 1;
+                    state_cpu->n_sample += 1;
                 }
             }
 
@@ -8087,7 +8068,7 @@ int whisper_full_with_state_for_whisper_streaming(
                     whisper_kv_cache_seq_cp(state_cpu->kv_self, cur.decoder_idx, WHISPER_MAX_DECODERS + j, -1, -1);
 
                     WHISPER_LOG_DEBUG("%s: beam search: decoder %d: from decoder %d: token = %10s, plog = %8.5f, sum_logprobs = %8.5f\n",
-                            __func__, j, cur.decoder_idx, ctx->vocab.id_to_token.at(decoder.sequence.tokens.back().id).c_str(), decoder.sequence.tokens.back().plog, decoder.sequence.sum_logprobs_all);
+                            __func__, j, cur.decoder_idx, ctx_cpu->vocab.id_to_token.at(decoder.sequence.tokens.back().id).c_str(), decoder.sequence.tokens.back().plog, decoder.sequence.sum_logprobs_all);
                 }
 
                 for (int j = 0; j < n_decoders_cur; ++j) {
@@ -8129,8 +8110,8 @@ int whisper_full_with_state_for_whisper_streaming(
                     const auto & token = decoder.sequence.tokens.back();
 
                     // timestamp token - update sliding window
-                    if (token.id > whisper_token_beg(ctx)) {
-                        const int seek_delta_new = 2*(token.id - whisper_token_beg(ctx));
+                    if (token.id > whisper_token_beg(ctx_cpu)) {
+                        const int seek_delta_new = 2*(token.id - whisper_token_beg(ctx_cpu));
 
                         // do not allow to go back in time
                         if (has_ts && seek_delta > seek_delta_new && result_len < i) {
@@ -8144,16 +8125,16 @@ int whisper_full_with_state_for_whisper_streaming(
                         has_ts = true;
                     }
 
-                    whisper_grammar_accept_token(*ctx, decoder.grammar, token.id);
+                    whisper_grammar_accept_token(*ctx_cpu, decoder.grammar, token.id);
 
                     {
-                        const auto tt = token.pt > 0.10 ? ctx->vocab.id_to_token.at(token.tid) : "[?]";
+                        const auto tt = token.pt > 0.10 ? ctx_cpu->vocab.id_to_token.at(token.tid) : "[?]";
                         WHISPER_LOG_DEBUG("%s: id = %3d, decoder = %d, token = %6d, p = %6.3f, ts = %10s, %6.3f, result_len = %4d '%s'\n",
-                                __func__, i, j, token.id, token.p, tt.c_str(), token.pt, result_len, ctx->vocab.id_to_token.at(token.id).c_str());
+                                __func__, i, j, token.id, token.p, tt.c_str(), token.pt, result_len, ctx_cpu->vocab.id_to_token.at(token.id).c_str());
                     }
 
                     // end of segment
-                    if (token.id == whisper_token_eot(ctx) ||               // end of text token
+                    if (token.id == whisper_token_eot(ctx_cpu) ||               // end of text token
                         (params.max_tokens > 0 && i >= params.max_tokens) || // max tokens per segment reached
                         (has_ts && seek + seek_delta + 100 >= seek_end)      // end of audio reached
                         ) {
@@ -8178,7 +8159,7 @@ int whisper_full_with_state_for_whisper_streaming(
                     }
 
                     // TESTS: if no tensors are loaded, it means we are running tests
-                    if (ctx->model.n_loaded == 0) {
+                    if (ctx_cpu->model.n_loaded == 0) {
                         seek_delta = 100*WHISPER_CHUNK_SIZE;
                         completed = true;
                         continue;
@@ -8213,7 +8194,7 @@ int whisper_full_with_state_for_whisper_streaming(
                 }
             }
 
-            state->t_sample_us += ggml_time_us() - t_start_sample_us;
+            state_cpu->t_sample_us += ggml_time_us() - t_start_sample_us;
 
             // obtain logits for the next token
             {
@@ -8299,7 +8280,7 @@ int whisper_full_with_state_for_whisper_streaming(
                     }
                 }
 
-                state->t_sample_us += ggml_time_us() - t_start_sample_us;
+                state_cpu->t_sample_us += ggml_time_us() - t_start_sample_us;
             }
         }
         // end decoding rounds, each decoder now has a sequence of predicted tokens
