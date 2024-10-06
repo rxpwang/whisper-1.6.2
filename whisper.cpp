@@ -7835,62 +7835,65 @@ int whisper_full_with_state_for_whisper_streaming(
 
         // init prompt and kv cache for the current iteration
         // TODO: do not recompute the prompt if it is the same as previous time
-        {
-            prompt.clear();
+        
+        prompt.clear();
 
-            // if we have already generated some text, use it as a prompt to condition the next generation
-            if (!prompt_past.empty() && t_cur < 0.5f && params.n_max_text_ctx > 0) {
-                int n_take = std::min(std::min(params.n_max_text_ctx, whisper_n_text_ctx(ctx)/2), int(prompt_past.size()));
+        // if we have already generated some text, use it as a prompt to condition the next generation
+        if (!prompt_past.empty() && t_cur < 0.5f && params.n_max_text_ctx > 0) {
+            int n_take = std::min(std::min(params.n_max_text_ctx, whisper_n_text_ctx(ctx)/2), int(prompt_past.size()));
 
-                prompt = { whisper_token_prev(ctx) };
-                prompt.insert(prompt.begin() + 1, prompt_past.end() - n_take, prompt_past.end());
-            }
-
-            // init new transcription with sot, language (opt) and task tokens
-            prompt.insert(prompt.end(), prompt_init.begin(), prompt_init.end());
-
-            // print the prompt
-            WHISPER_LOG_INFO("\n\n");
-            for (int i = 0; i < (int) prompt.size(); i++) {
-                WHISPER_LOG_INFO("%s: prompt[%d] = %s\n", __func__, i, ctx->vocab.id_to_token.at(prompt[i]).c_str());
-            }
-            WHISPER_LOG_INFO("\n\n");
-
-            whisper_kv_cache_clear(state->kv_self);
-
-            // pipeline implementation: also clear the kv cache for state_cpu
-            whisper_kv_cache_clear(state_cpu->kv_self);
-
-            whisper_batch_prep_legacy(state->batch, prompt.data(), prompt.size(), 0, 0);
-
-            if (!whisper_decode_internal(*ctx, *state, state->batch, params.n_threads, false, params.abort_callback, params.abort_callback_user_data)) {
-                WHISPER_LOG_ERROR("%s: failed to decode\n", __func__);
-                return -7;
-            }
-
-
-            // pipeline implementation: copy the prompt batch result to state_cpu
-            state_cpu->logits = state->logits;
-            state_cpu->kv_self = state->kv_self;
-
-            // pipeline implementation: prepare the decoders for state_cpu as well
-            {
-                const int64_t t_start_sample_us = ggml_time_us();
-                state_cpu->decoders[0].i_batch = prompt.size() - 1;
-                whisper_process_logits(*ctx_cpu, *state_cpu, state_cpu->decoders[0], params, t_cur);
-
-                for (int j = 1; j < n_decoders_cur; ++j) {
-                    auto & decoder = state_cpu->decoders[j];
-
-                    whisper_kv_cache_seq_cp(state_cpu->kv_self, 0, j, -1, -1);
-
-                    memcpy(decoder.probs.data(),    state_cpu->decoders[0].probs.data(),    decoder.probs.size()*sizeof(decoder.probs[0]));
-                    memcpy(decoder.logits.data(),   state_cpu->decoders[0].logits.data(),   decoder.logits.size()*sizeof(decoder.logits[0]));
-                    memcpy(decoder.logprobs.data(), state_cpu->decoders[0].logprobs.data(), decoder.logprobs.size()*sizeof(decoder.logprobs[0]));
-                }
-                state_cpu->t_sample_us += ggml_time_us() - t_start_sample_us;
-            }
+            prompt = { whisper_token_prev(ctx) };
+            prompt.insert(prompt.begin() + 1, prompt_past.end() - n_take, prompt_past.end());
         }
+
+        // init new transcription with sot, language (opt) and task tokens
+        prompt.insert(prompt.end(), prompt_init.begin(), prompt_init.end());
+
+        // print the prompt
+        WHISPER_LOG_INFO("\n\n");
+        for (int i = 0; i < (int) prompt.size(); i++) {
+            WHISPER_LOG_INFO("%s: prompt[%d] = %s\n", __func__, i, ctx->vocab.id_to_token.at(prompt[i]).c_str());
+        }
+        WHISPER_LOG_INFO("\n\n");
+
+        whisper_kv_cache_clear(state->kv_self);
+
+        // pipeline implementation: also clear the kv cache for state_cpu
+        whisper_kv_cache_clear(state_cpu->kv_self);
+
+        whisper_batch_prep_legacy(state->batch, prompt.data(), prompt.size(), 0, 0);
+
+        if (!whisper_decode_internal(*ctx, *state, state->batch, params.n_threads, false, params.abort_callback, params.abort_callback_user_data)) {
+            WHISPER_LOG_ERROR("%s: failed to decode\n", __func__);
+            return -7;
+        }
+
+        // end of the ctx and state execution for encoding and prompting on GPU
+
+        
+        // pipeline implementation: copy the prompt batch result to state_cpu
+        state_cpu->logits = state->logits;
+        state_cpu->kv_self = state->kv_self;
+        
+        // start of the ctx_cpu and state_cpu execution for decoding on CPU
+        // pipeline implementation: prepare the decoders for state_cpu as well
+        {
+            const int64_t t_start_sample_us = ggml_time_us();
+            state_cpu->decoders[0].i_batch = prompt.size() - 1;
+            whisper_process_logits(*ctx_cpu, *state_cpu, state_cpu->decoders[0], params, t_cur);
+
+            for (int j = 1; j < n_decoders_cur; ++j) {
+                auto & decoder = state_cpu->decoders[j];
+
+                whisper_kv_cache_seq_cp(state_cpu->kv_self, 0, j, -1, -1);
+
+                memcpy(decoder.probs.data(),    state_cpu->decoders[0].probs.data(),    decoder.probs.size()*sizeof(decoder.probs[0]));
+                memcpy(decoder.logits.data(),   state_cpu->decoders[0].logits.data(),   decoder.logits.size()*sizeof(decoder.logits[0]));
+                memcpy(decoder.logprobs.data(), state_cpu->decoders[0].logprobs.data(), decoder.logprobs.size()*sizeof(decoder.logprobs[0]));
+            }
+            state_cpu->t_sample_us += ggml_time_us() - t_start_sample_us;
+        }
+        
 
         int n_max = whisper_n_text_ctx(ctx_cpu)/2 - 4;
         n_max = (n_max < params.max_round_decode) ? n_max : params.max_round_decode;
@@ -8457,7 +8460,12 @@ int whisper_full_with_state_for_whisper_streaming(
             }
         }
     }
+    // end part of the ctx_cpu and state_cpu execution on CPU
+
+
     state->result_all = state_cpu->result_all;
+
+    // start part of the ctx and state execution on GPU
     // FIXME: will timestamp offsets be correct?
     // [EXPERIMENTAL] Token-level timestamps with DTW
     {
