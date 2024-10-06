@@ -7907,7 +7907,7 @@ int whisper_full_with_state_for_whisper_streaming(
                     memcpy(decoder.logits.data(),   state_cpu->decoders[0].logits.data(),   decoder.logits.size()*sizeof(decoder.logits[0]));
                     memcpy(decoder.logprobs.data(), state_cpu->decoders[0].logprobs.data(), decoder.logprobs.size()*sizeof(decoder.logprobs[0]));
                 }
-
+                state_cpu->t_sample_us += ggml_time_us() - t_start_sample_us;
             }
         }
 
@@ -8343,28 +8343,6 @@ int whisper_full_with_state_for_whisper_streaming(
 
         bool success = true;
 
-        // was the decoding successful for the current temperature?
-        // do fallback only if:
-        // - we are not at the last temperature
-        if (it != (int) temperatures.size() - 1) {
-            //const auto & decoder = state->decoders[best_decoder_id];
-            const auto & decoder = state_cpu->decoders[best_decoder_id];
-            if (decoder.failed || decoder.sequence.avg_logprobs < params.logprob_thold) {
-                WHISPER_LOG_DEBUG("%s: failed due to avg_logprobs %8.5f < %8.5f\n", __func__, decoder.sequence.avg_logprobs, params.logprob_thold);
-                success = false;
-                state->n_fail_p++;
-            }
-        }
-
-        // if (success) {
-        //     //for (auto & token : ctx->decoders[best_decoder_id].sequence.tokens) {
-        //     //    WHISPER_LOG_DEBUG("%s: token = %d, p = %6.3f, pt = %6.3f, ts = %s, str = %s\n", __func__, token.id, token.p, token.pt, ctx->vocab.id_to_token.at(token.tid).c_str(), ctx->vocab.id_to_token.at(token.id).c_str());
-        //     //}
-
-        //     break;
-        // }
-
-        // WHISPER_LOG_DEBUG("\n%s: failed to decode with temperature = %.2f\n", __func__, t_cur);
     }
 
     // output results through a user-provided callback
