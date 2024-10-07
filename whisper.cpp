@@ -7872,14 +7872,79 @@ int whisper_full_with_state_for_whisper_streaming(
 
 
     // pipeline implementation: copy the prompt batch result to state_cpu
-    state_cpu->logits = state->logits;
-    state_cpu->kv_self = state->kv_self;
-    
+    // state_cpu->logits = state->logits;
+    // state_cpu->kv_self = state->kv_self;
+    // state_cpu->mel = state->mel;
+
+    return prompt.size();
+}
+
+int whisper_full_with_state_for_whisper_streaming_cpu(
+        struct whisper_context * ctx_cpu,
+          struct whisper_state * state_cpu,
+          struct whisper_full_params   params,
+                   const float * samples,
+                           int   n_samples,
+                   const std::vector<std::tuple<double, double, std::string>> & reference_transcript_tokens,
+                   int prompt_size) {
     // start of the ctx_cpu and state_cpu execution for decoding on CPU
+    int best_decoder_id = 0;
+    int n_decoders_cur = 0;
+    const float t_cur = 0;
+    int seek = 0;
+    const int seek_start = params.offset_ms/10;
+    const int seek_end = params.duration_ms == 0 ? whisper_n_len_from_state(state_cpu) : seek_start + params.duration_ms/10; // requires to copy the mel from state to state_cpu
+
+    switch (params.strategy) {
+        case whisper_sampling_strategy::WHISPER_SAMPLING_GREEDY:
+            {
+                if (t_cur > 0.0f) {
+                    n_decoders_cur = params.greedy.best_of;
+                }
+            } break;
+        case whisper_sampling_strategy::WHIPSER_SAMPLING_OPTIMIZED_BEAM_SEARCH:
+            {
+                // for beam reduce, first set the n_decoders_cur to 1 to only work on first decoder until diverge
+                n_decoders_cur = 1;
+            } break;
+        case whisper_sampling_strategy::WHISPER_SAMPLING_BEAM_SEARCH:
+            {
+                if (t_cur > 0.0f) {
+                    n_decoders_cur = params.greedy.best_of;
+                } else {
+                    n_decoders_cur = params.beam_search.beam_size;
+                }
+            } break;
+    };
+
+    int n_decoders = 1;
+
+    switch (params.strategy) {
+        case WHISPER_SAMPLING_GREEDY:
+            {
+                n_decoders = params.greedy.best_of;
+            } break;
+        case WHISPER_SAMPLING_BEAM_SEARCH:
+        case WHIPSER_SAMPLING_OPTIMIZED_BEAM_SEARCH:
+            {
+                n_decoders = std::max(params.greedy.best_of, params.beam_search.beam_size);
+            } break;
+    };
+
+    n_decoders = std::max(1, n_decoders);
+
+    std::vector<std::vector<beam_candidate>> beam_candidates_per_decoder(n_decoders);
+    std::vector<beam_candidate> all_beam_candidates;
+    size_t cur_token_idx_in_reference_prompt = -1;
+    int32_t n_decoders_fallback_flag = 0;
+    auto & result_all = state_cpu->result_all;
+    result_all.clear();
+
+    n_decoders_cur = std::max(1, n_decoders_cur);
     // pipeline implementation: prepare the decoders for state_cpu as well
     {
         const int64_t t_start_sample_us = ggml_time_us();
-        state_cpu->decoders[0].i_batch = prompt.size() - 1;
+        state_cpu->decoders[0].i_batch = prompt_size - 1;
         whisper_process_logits(*ctx_cpu, *state_cpu, state_cpu->decoders[0], params, t_cur);
 
         for (int j = 1; j < n_decoders_cur; ++j) {
@@ -8205,7 +8270,7 @@ int whisper_full_with_state_for_whisper_streaming(
             auto & batch = state_cpu->batch;
             batch.n_tokens = 0;
 
-            const int n_past = prompt.size() + i;
+            const int n_past = prompt_size + i;
 
             for (int j = 0; j < n_decoders_cur; ++j) {
                 //auto & decoder = state->decoders[j];
@@ -8311,7 +8376,7 @@ int whisper_full_with_state_for_whisper_streaming(
                         __func__, j, decoder.sequence.entropy, params.entropy_thold);
 
                 decoder.failed = true;
-                state->n_fail_h++;
+                state_cpu->n_fail_h++;
 
                 continue;
             }
@@ -8346,18 +8411,20 @@ int whisper_full_with_state_for_whisper_streaming(
     //WHISPER_LOG_DEBUG("prompt_init.size() = %d, prompt.size() = %d, result_len = %d, seek_delta = %d\n", prompt_init.size(), prompt.size(), result_len, seek_delta);
 
     // update prompt_past
-    prompt_past.clear();
-    if (prompt.front() == whisper_token_prev(ctx)) {
-        prompt_past.insert(prompt_past.end(), prompt.begin() + 1, prompt.end() - prompt_init.size());
-    }
+    // auto & prompt_past = state_cpu->prompt_past;
 
-    for (int i = 0; i < result_len; ++i) {
-        prompt_past.push_back(tokens_cur[i].id);
-    }
+    // prompt_past.clear();
+    // if (prompt.front() == whisper_token_prev(ctx_cpu)) {
+    //     prompt_past.insert(prompt_past.end(), prompt.begin() + 1, prompt.end() - prompt_init.size());
+    // }
 
-    if (!tokens_cur.empty() && ctx->model.n_loaded > 0) {
+    // for (int i = 0; i < result_len; ++i) {
+    //     prompt_past.push_back(tokens_cur[i].id);
+    // }
+
+    if (!tokens_cur.empty() && ctx_cpu->model.n_loaded > 0) {
         int  i0 = 0;
-        auto t0 = seek + 2*(tokens_cur.front().tid - whisper_token_beg(ctx));
+        auto t0 = seek + 2*(tokens_cur.front().tid - whisper_token_beg(ctx_cpu));
 
         std::string text;
         bool speaker_turn_next = false;
@@ -8367,17 +8434,17 @@ int whisper_full_with_state_for_whisper_streaming(
             //        ctx->vocab.id_to_token[tokens_cur[i].id].c_str(), tokens_cur[i].p,
             //        ctx->vocab.id_to_token[tokens_cur[i].tid].c_str(), tokens_cur[i].pt);
 
-            if (params.print_special || tokens_cur[i].id < whisper_token_eot(ctx)) {
-                text += whisper_token_to_str(ctx, tokens_cur[i].id);
+            if (params.print_special || tokens_cur[i].id < whisper_token_eot(ctx_cpu)) {
+                text += whisper_token_to_str(ctx_cpu, tokens_cur[i].id);
             }
 
             // [TDRZ] record if speaker turn was predicted after current segment
-            if (params.tdrz_enable && tokens_cur[i].id == whisper_token_solm(ctx)) {
+            if (params.tdrz_enable && tokens_cur[i].id == whisper_token_solm(ctx_cpu)) {
                 speaker_turn_next = true;
             }
 
-            if (tokens_cur[i].id > whisper_token_beg(ctx) && !params.single_segment) {
-                const auto t1 = seek + 2*(tokens_cur[i].tid - whisper_token_beg(ctx));
+            if (tokens_cur[i].id > whisper_token_beg(ctx_cpu) && !params.single_segment) {
+                const auto t1 = seek + 2*(tokens_cur[i].tid - whisper_token_beg(ctx_cpu));
 
                 if (!text.empty()) {
                     const auto tt0 = params.speed_up ? 2*t0 : t0;
@@ -8403,18 +8470,18 @@ int whisper_full_with_state_for_whisper_streaming(
 
                     if (params.token_timestamps) {
                         whisper_exp_compute_token_level_timestamps(
-                                *ctx, *state, result_all.size() - 1, params.thold_pt, params.thold_ptsum);
+                                *ctx_cpu, *state_cpu, result_all.size() - 1, params.thold_pt, params.thold_ptsum);
 
                         if (params.max_len > 0) {
-                            n_new = whisper_wrap_segment(*ctx, *state, params.max_len, params.split_on_word);
+                            n_new = whisper_wrap_segment(*ctx_cpu, *state_cpu, params.max_len, params.split_on_word);
                         }
                     }
                     if (params.new_segment_callback) {
-                        params.new_segment_callback(ctx, state, n_new, params.new_segment_callback_user_data);
+                        params.new_segment_callback(ctx_cpu, state_cpu, n_new, params.new_segment_callback_user_data);
                     }
                 }
                 text = "";
-                while (i < (int) tokens_cur.size() && tokens_cur[i].id > whisper_token_beg(ctx)) {
+                while (i < (int) tokens_cur.size() && tokens_cur[i].id > whisper_token_beg(ctx_cpu)) {
                     i++;
                 }
                 i--;
@@ -8448,10 +8515,10 @@ int whisper_full_with_state_for_whisper_streaming(
 
             if (params.token_timestamps) {
                 whisper_exp_compute_token_level_timestamps(
-                        *ctx, *state, result_all.size() - 1, params.thold_pt, params.thold_ptsum);
+                        *ctx_cpu, *state_cpu, result_all.size() - 1, params.thold_pt, params.thold_ptsum);
 
                 if (params.max_len > 0) {
-                    n_new = whisper_wrap_segment(*ctx, *state, params.max_len, params.split_on_word);
+                    n_new = whisper_wrap_segment(*ctx_cpu, *state_cpu, params.max_len, params.split_on_word);
                 }
             }
             if (params.new_segment_callback) {
@@ -8463,7 +8530,7 @@ int whisper_full_with_state_for_whisper_streaming(
     // end part of the ctx_cpu and state_cpu execution on CPU
 
 
-    state->result_all = state_cpu->result_all;
+    //state->result_all = state_cpu->result_all;
     return seek_delta;
 
 }
@@ -8514,12 +8581,14 @@ int whisper_full_for_whisper_streaming(
                    const float * samples,
                            int   n_samples,
                    const std::vector<std::tuple<double, double, std::string>> & reference_transcript_tokens, struct whisper_context * ctx_cpu=nullptr) {
-    int seek_delta = whisper_full_with_state_for_whisper_streaming(ctx, ctx->state, params, samples, n_samples, reference_transcript_tokens, ctx_cpu);
-    // state_cpu->logits = state->logits;
-    // state_cpu->kv_self = state->kv_self;
-    // ctx_cpu->state->logits = ctx->state->logits;
-    // ctx_cpu->state->kv_self = ctx->state->kv_self;
+    int prompt_size = whisper_full_with_state_for_whisper_streaming(ctx, ctx->state, params, samples, n_samples, reference_transcript_tokens, ctx_cpu);
+    ctx_cpu->state->logits = ctx->state->logits;
+    ctx_cpu->state->kv_self = ctx->state->kv_self;
+    ctx_cpu->state->mel = ctx->state->mel;
+    
+    int seek_delta = whisper_full_with_state_for_whisper_streaming_cpu(ctx_cpu, ctx_cpu->state, params, samples, n_samples, reference_transcript_tokens, prompt_size);
     ctx->state->result_all = ctx_cpu->state->result_all;
+
     return whisper_full_with_state_for_whisper_streaming_gpu2(ctx, ctx->state, params, seek_delta);
 }
 
