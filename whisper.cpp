@@ -7523,16 +7523,9 @@ int whisper_full_with_state_for_whisper_streaming(
     struct whisper_full_params   params,
                    const float * samples,
                            int   n_samples,
-                   const std::vector<std::tuple<double, double, std::string>> & reference_transcript_tokens,
-                    struct whisper_context * ctx_cpu=nullptr) {
+                   const std::vector<std::tuple<double, double, std::string>> & reference_transcript_tokens) {
 
     print_token_timestamp_vector(reference_transcript_tokens);
-    // pipeline implementation: get the state for cpu execution
-    auto & state_cpu = ctx_cpu->state;
-    // clear old results
-    //auto & result_all = state->result_all;
-    auto & result_all = state_cpu->result_all;
-    result_all.clear();
 
     if (n_samples > 0) {
         // compute log mel spectrogram
@@ -7633,19 +7626,6 @@ int whisper_full_with_state_for_whisper_streaming(
         decoder.rng = std::mt19937(0);
     }
 
-    // pipeline implementation: initializing decoder for state_cpu
-    for (int j = 1; j < n_decoders; j++) {
-        auto & decoder = state_cpu->decoders[j];
-
-        decoder.sequence.tokens.reserve(state_cpu->decoders[0].sequence.tokens.capacity());
-
-        decoder.probs.resize   (ctx->vocab.n_vocab);
-        decoder.logits.resize  (ctx->vocab.n_vocab);
-        decoder.logprobs.resize(ctx->vocab.n_vocab);
-        decoder.logits_id.reserve(ctx->model.hparams.n_vocab);
-
-        decoder.rng = std::mt19937(0);
-    }
 
     // the accumulated text context so far
     auto & prompt_past = state->prompt_past;
@@ -7735,9 +7715,7 @@ int whisper_full_with_state_for_whisper_streaming(
         return -6;
     }
 
-    // pipeline implementation: copy the state.kv_cross to state_cpu.kv_cross
-    state_cpu->kv_cross = state->kv_cross;
-
+    
     // if there is a very short audio segment left to process, we remove any past prompt since it tends
     // to confuse the decoder and often make it repeat or hallucinate stuff
     if (seek > seek_start && seek + 500 >= seek_end) {
@@ -7807,31 +7785,6 @@ int whisper_full_with_state_for_whisper_streaming(
         }
     }
 
-    // pipeline implementation: initialize the decoders for state_cpu
-    for (int j = 0; j < n_decoders; ++j) {
-        auto & decoder = state_cpu->decoders[j];
-
-        decoder.sequence.tokens.clear();
-        decoder.sequence.result_len       = 0;
-        decoder.sequence.sum_logprobs_all = 0.0;
-        decoder.sequence.sum_logprobs     = -INFINITY;
-        decoder.sequence.avg_logprobs     = -INFINITY;
-        decoder.sequence.entropy          = 0.0;
-        decoder.sequence.score            = -INFINITY;
-
-        decoder.seek_delta = 100*WHISPER_CHUNK_SIZE;
-
-        decoder.failed    = false;
-        decoder.completed = false;
-        decoder.has_ts    = false;
-
-        // no grammar is used in our system
-        if (params.grammar_rules != nullptr) {
-            decoder.grammar = whisper_grammar_init(params.grammar_rules, params.n_grammar_rules, params.i_start_rule);
-        } else {
-            decoder.grammar = {};
-        }
-    }
 
     // init prompt and kv cache for the current iteration
     // TODO: do not recompute the prompt if it is the same as previous time
@@ -7858,9 +7811,6 @@ int whisper_full_with_state_for_whisper_streaming(
 
     whisper_kv_cache_clear(state->kv_self);
 
-    // pipeline implementation: also clear the kv cache for state_cpu
-    whisper_kv_cache_clear(state_cpu->kv_self);
-
     whisper_batch_prep_legacy(state->batch, prompt.data(), prompt.size(), 0, 0);
 
     if (!whisper_decode_internal(*ctx, *state, state->batch, params.n_threads, false, params.abort_callback, params.abort_callback_user_data)) {
@@ -7869,12 +7819,6 @@ int whisper_full_with_state_for_whisper_streaming(
     }
 
     // end of the ctx and state execution for encoding and prompting on GPU
-
-
-    // pipeline implementation: copy the prompt batch result to state_cpu
-    // state_cpu->logits = state->logits;
-    // state_cpu->kv_self = state->kv_self;
-    // state_cpu->mel = state->mel;
 
     return prompt.size();
 }
@@ -7941,6 +7885,46 @@ int whisper_full_with_state_for_whisper_streaming_cpu(
     result_all.clear();
 
     n_decoders_cur = std::max(1, n_decoders_cur);
+    // pipeline implementation: initializing decoder for state_cpu
+    for (int j = 1; j < n_decoders; j++) {
+        auto & decoder = state_cpu->decoders[j];
+
+        decoder.sequence.tokens.reserve(state_cpu->decoders[0].sequence.tokens.capacity());
+
+        decoder.probs.resize   (ctx_cpu->vocab.n_vocab);
+        decoder.logits.resize  (ctx_cpu->vocab.n_vocab);
+        decoder.logprobs.resize(ctx_cpu->vocab.n_vocab);
+        decoder.logits_id.reserve(ctx_cpu->model.hparams.n_vocab);
+
+        decoder.rng = std::mt19937(0);
+    }
+
+    // pipeline implementation: initialize the decoders for state_cpu
+    for (int j = 0; j < n_decoders; ++j) {
+        auto & decoder = state_cpu->decoders[j];
+
+        decoder.sequence.tokens.clear();
+        decoder.sequence.result_len       = 0;
+        decoder.sequence.sum_logprobs_all = 0.0;
+        decoder.sequence.sum_logprobs     = -INFINITY;
+        decoder.sequence.avg_logprobs     = -INFINITY;
+        decoder.sequence.entropy          = 0.0;
+        decoder.sequence.score            = -INFINITY;
+
+        decoder.seek_delta = 100*WHISPER_CHUNK_SIZE;
+
+        decoder.failed    = false;
+        decoder.completed = false;
+        decoder.has_ts    = false;
+
+        // no grammar is used in our system
+        if (params.grammar_rules != nullptr) {
+            decoder.grammar = whisper_grammar_init(params.grammar_rules, params.n_grammar_rules, params.i_start_rule);
+        } else {
+            decoder.grammar = {};
+        }
+    }
+
     // pipeline implementation: prepare the decoders for state_cpu as well
     {
         const int64_t t_start_sample_us = ggml_time_us();
@@ -8581,9 +8565,11 @@ int whisper_full_for_whisper_streaming(
                    const float * samples,
                            int   n_samples,
                    const std::vector<std::tuple<double, double, std::string>> & reference_transcript_tokens, struct whisper_context * ctx_cpu=nullptr) {
-    int prompt_size = whisper_full_with_state_for_whisper_streaming(ctx, ctx->state, params, samples, n_samples, reference_transcript_tokens, ctx_cpu);
+    int prompt_size = whisper_full_with_state_for_whisper_streaming(ctx, ctx->state, params, samples, n_samples, reference_transcript_tokens);
+    whisper_kv_cache_clear(ctx_cpu->state->kv_self);
     ctx_cpu->state->logits = ctx->state->logits;
     ctx_cpu->state->kv_self = ctx->state->kv_self;
+    ctx_cpu->state->kv_cross = ctx->state->kv_cross;
     ctx_cpu->state->mel = ctx->state->mel;
     
     int seek_delta = whisper_full_with_state_for_whisper_streaming_cpu(ctx_cpu, ctx_cpu->state, params, samples, n_samples, reference_transcript_tokens, prompt_size);
