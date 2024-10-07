@@ -8570,8 +8570,9 @@ int whisper_full_for_whisper_streaming(
     ctx_cpu->state->logits = ctx->state->logits;
     ctx_cpu->state->kv_self = ctx->state->kv_self;
     ctx_cpu->state->kv_cross = ctx->state->kv_cross;
-    ctx_cpu->state->mel = ctx->state->mel;
-    
+    //ctx_cpu->state->mel = ctx->state->mel;
+    whisper_copy_mel(ctx_cpu, ctx);
+
     int seek_delta = whisper_full_with_state_for_whisper_streaming_cpu(ctx_cpu, ctx_cpu->state, params, samples, n_samples, reference_transcript_tokens, prompt_size);
     ctx->state->result_all = ctx_cpu->state->result_all;
 
@@ -8594,4 +8595,20 @@ char WhisperToLowercase(char c) {
         return c + ('a' - 'A');
     }
     return c;
+}
+
+void whisper_copy_mel(struct whisper_context * ctx_dst, struct whisper_context * ctx_src) {
+    //ctx_cpu->state->mel = ctx->state->mel;
+    // struct whisper_mel {
+    // int n_len;
+    // int n_len_org;
+    // int n_mel;
+
+    // std::vector<float> data;
+    // };
+    // we want to do deep copy
+    ctx_dst->state->mel.n_len = ctx_src->state->mel.n_len;
+    ctx_dst->state->mel.n_len_org = ctx_src->state->mel.n_len_org;
+    ctx_dst->state->mel.n_mel = ctx_src->state->mel.n_mel;
+    ctx_dst->state->mel.data = ctx_src->state->mel.data;
 }
