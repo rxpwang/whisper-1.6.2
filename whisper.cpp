@@ -8568,8 +8568,9 @@ int whisper_full_for_whisper_streaming(
     int prompt_size = whisper_full_with_state_for_whisper_streaming(ctx, ctx->state, params, samples, n_samples, reference_transcript_tokens);
     whisper_kv_cache_clear(ctx_cpu->state->kv_self);
     ctx_cpu->state->logits = ctx->state->logits;
-    ctx_cpu->state->kv_self = ctx->state->kv_self;
-    ctx_cpu->state->kv_cross = ctx->state->kv_cross;
+    // ctx_cpu->state->kv_self = ctx->state->kv_self;
+    // ctx_cpu->state->kv_cross = ctx->state->kv_cross;
+    whisper_copy_kv_cache(ctx_cpu, ctx);
     //ctx_cpu->state->mel = ctx->state->mel;
     whisper_copy_mel(ctx_cpu, ctx);
 
@@ -8611,4 +8612,42 @@ void whisper_copy_mel(struct whisper_context * ctx_dst, struct whisper_context *
     ctx_dst->state->mel.n_len_org = ctx_src->state->mel.n_len_org;
     ctx_dst->state->mel.n_mel = ctx_src->state->mel.n_mel;
     ctx_dst->state->mel.data = ctx_src->state->mel.data;
+}
+
+void whisper_copy_kv_cache(struct whisper_context * ctx_dst, struct whisper_context * ctx_src) {
+    // ctx_cpu->state->kv_self = ctx->state->kv_self;
+    // ctx_cpu->state->kv_cross = ctx->state->kv_cross;
+    // we want to do deep copy
+    // struct whisper_kv_cache {
+    //     uint32_t head = 0;
+    //     uint32_t size = 0;
+
+    //     // computed before each graph build
+    //     uint32_t n = 0;
+
+    //     std::vector<whisper_kv_cell> cells;
+
+    //     struct ggml_tensor * k;
+    //     struct ggml_tensor * v;
+
+    //     struct ggml_context * ctx = nullptr;
+
+    //     ggml_backend_buffer_t buffer = nullptr;
+    // };
+    // copy the kv_self
+    ctx_dst->state->kv_self.head = ctx_src->state->kv_self.head;
+    ctx_dst->state->kv_self.size = ctx_src->state->kv_self.size;
+    ctx_dst->state->kv_self.n = ctx_src->state->kv_self.n;
+    ctx_dst->state->kv_self.cells = ctx_src->state->kv_self.cells;
+    ggml_backend_tensor_copy(ctx_src->state->kv_self.k, ctx_dst->state->kv_self.k);
+    ggml_backend_tensor_copy(ctx_src->state->kv_self.v, ctx_dst->state->kv_self.v);
+
+    // copy the kv_cross
+    ctx_dst->state->kv_cross.head = ctx_src->state->kv_cross.head;
+    ctx_dst->state->kv_cross.size = ctx_src->state->kv_cross.size;
+    ctx_dst->state->kv_cross.n = ctx_src->state->kv_cross.n;
+    ctx_dst->state->kv_cross.cells = ctx_src->state->kv_cross.cells;
+    ggml_backend_tensor_copy(ctx_src->state->kv_cross.k, ctx_dst->state->kv_cross.k);
+    ggml_backend_tensor_copy(ctx_src->state->kv_cross.v, ctx_dst->state->kv_cross.v);
+
 }
