@@ -43,6 +43,7 @@
 #include <functional>
 #include <codecvt>
 #include <unordered_set>
+#include <future>
 
 #if defined(_MSC_VER)
 #pragma warning(disable: 4244 4267) // possible loss of data
@@ -8560,24 +8561,49 @@ int whisper_full_with_state_for_whisper_streaming_gpu2(
 }
 
 int whisper_full_for_whisper_streaming(
-        struct whisper_context * ctx,
-    struct whisper_full_params   params,
-                   const float * samples,
-                           int   n_samples,
-                   const std::vector<std::tuple<double, double, std::string>> & reference_transcript_tokens, struct whisper_context * ctx_cpu=nullptr) {
-    int prompt_size = whisper_full_with_state_for_whisper_streaming(ctx, ctx->state, params, samples, n_samples, reference_transcript_tokens);
-    whisper_kv_cache_clear(ctx_cpu->state->kv_self);
-    ctx_cpu->state->logits = ctx->state->logits;
-    // ctx_cpu->state->kv_self = ctx->state->kv_self;
-    // ctx_cpu->state->kv_cross = ctx->state->kv_cross;
-    whisper_copy_kv_cache(ctx_cpu, ctx);
-    //ctx_cpu->state->mel = ctx->state->mel;
-    whisper_copy_mel(ctx_cpu, ctx);
+                                    struct whisper_context * ctx,
+                                struct whisper_full_params   params,
+                                               const float * samples,
+                                                       int   n_samples,
+const std::vector<std::tuple<double, double, std::string>> & reference_transcript_tokens,
+                                    struct whisper_context * ctx_cpu,
+                                                    size_t   num_iterations,
+                                                       int & prompt_size) {
+    if (num_iterations == 1) {
+        // this is the first iteration, encoding needs to go first
+        prompt_size = whisper_full_with_state_for_whisper_streaming(ctx, ctx->state, params, samples, n_samples, reference_transcript_tokens);
+        // copy state to cpu
+        whisper_kv_cache_clear(ctx_cpu->state->kv_self);
+        ctx_cpu->state->logits = ctx->state->logits;
+        whisper_copy_kv_cache(ctx_cpu, ctx);
+        whisper_copy_mel(ctx_cpu, ctx);
+        return 0;
+    } else {
+        int last_prompt_size = prompt_size;
+        // not the first iteration, the encoding and decoding goes together
+        
+        // the gpu decoding part
+        std::future<int> gpu_future = std::async(std::launch::async, whisper_full_with_state_for_whisper_streaming,
+                                                 ctx, ctx->state, params, samples, n_samples, reference_transcript_tokens);
+        
+        // the cpu decoding part
+        std::future<int> cpu_future = std::async(std::launch::async, whisper_full_with_state_for_whisper_streaming_cpu,
+                                                 ctx_cpu, ctx_cpu->state, params, samples, n_samples, reference_transcript_tokens, last_prompt_size);
 
-    int seek_delta = whisper_full_with_state_for_whisper_streaming_cpu(ctx_cpu, ctx_cpu->state, params, samples, n_samples, reference_transcript_tokens, prompt_size);
-    ctx->state->result_all = ctx_cpu->state->result_all;
+        prompt_size = gpu_future.get();
+        int seek_delta = cpu_future.get();
 
-    return whisper_full_with_state_for_whisper_streaming_gpu2(ctx, ctx->state, params, seek_delta);
+        // copy the current cpu state to gpu
+        ctx->state->result_all = ctx_cpu->state->result_all;
+
+        // copy the current gpu state to cpu
+        whisper_kv_cache_clear(ctx_cpu->state->kv_self);
+        ctx_cpu->state->logits = ctx->state->logits;
+        whisper_copy_kv_cache(ctx_cpu, ctx);
+        whisper_copy_mel(ctx_cpu, ctx);
+
+        return whisper_full_with_state_for_whisper_streaming_gpu2(ctx, ctx->state, params, seek_delta);
+    }
 }
 
 void print_token_timestamp_vector(const std::vector<std::tuple<double, double, std::string>>& committed) {

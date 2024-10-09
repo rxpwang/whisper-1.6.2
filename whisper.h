@@ -609,7 +609,9 @@ extern "C" {
                            const float * samples,
                                    int   n_samples,
                                    const std::vector<std::tuple<double, double, std::string>> & reference_transcript_tokens,
-                                  struct whisper_context * ctx_cpu);
+                                  struct whisper_context * ctx_cpu,
+                                size_t   num_iterations,
+                                   int & prompt_size);
 
     WHISPER_API int whisper_full_with_state_for_whisper_streaming(
                 struct whisper_context * ctx,
@@ -617,8 +619,7 @@ extern "C" {
             struct whisper_full_params   params,
                            const float * samples,
                                    int   n_samples,
-                                   const std::vector<std::tuple<double, double, std::string>> & reference_transcript_tokens,
-                                  struct whisper_context * ctx_cpu);
+                                   const std::vector<std::tuple<double, double, std::string>> & reference_transcript_tokens);
 
     // Split the input audio in chunks and process each chunk separately using whisper_full_with_state()
     // Result is stored in the default state of the context

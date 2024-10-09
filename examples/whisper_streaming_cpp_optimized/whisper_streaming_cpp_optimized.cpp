@@ -618,10 +618,11 @@ int main(int argc, char ** argv) {
     HypothesisBuffer transcript_buffer;
     double buffer_time_offset = 0;
     std::vector<std::tuple<double, double, std::string>> committed;
-
+    size_t num_iterations = 0;
+    int prompt_size = 0;
     // main audio loop
     while (is_running) {
-        
+        num_iterations++;
         if (!is_running) {
             break;
         }
@@ -771,7 +772,15 @@ int main(int argc, char ** argv) {
             reference_transcript_tokens.insert(reference_transcript_tokens.end(), transcript_buffer.self_buffer.begin(), transcript_buffer.self_buffer.end());
 
             // whisper_streaming asr.transcribe() in an iter
-            if (whisper_full_for_whisper_streaming(ctx, wparams, pcmf32.data(), pcmf32.size(), reference_transcript_tokens, ctx_cpu) != 0) {
+            if (whisper_full_for_whisper_streaming(
+                    ctx,
+                    wparams,
+                    pcmf32.data(), pcmf32.size(),
+                    reference_transcript_tokens,
+                    ctx_cpu,
+                    num_iterations,
+                    prompt_size
+                ) != 0) {
                 fprintf(stderr, "%s: failed to process audio\n", argv[0]);
                 return 6;
             }
