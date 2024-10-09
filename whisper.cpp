@@ -8601,6 +8601,8 @@ const std::vector<std::tuple<double, double, std::string>> & reference_transcrip
                 ctx->model.hparams.n_text_layer,
                 GGML_PAD(ctx->model.hparams.n_audio_ctx, 256));
         whisper_copy_kv_cache_single(tmp_kv_cross, ctx_cpu->state->kv_cross);
+        whisper_mel tmp_mel;
+        whisper_copy_mel_single(tmp_mel, ctx_cpu->state->mel);
 
         // copy the current gpu state to cpu
         whisper_kv_cache_clear(ctx_cpu->state->kv_self);
@@ -8609,6 +8611,7 @@ const std::vector<std::tuple<double, double, std::string>> & reference_transcrip
         whisper_copy_mel(ctx_cpu, ctx);
 
         whisper_copy_kv_cache_single(ctx->state->kv_cross, tmp_kv_cross);
+        whisper_copy_mel_single(ctx->state->mel, tmp_mel);
 
         return whisper_full_with_state_for_whisper_streaming_gpu2(ctx, ctx->state, params, seek_delta);
     }
@@ -8713,4 +8716,20 @@ void whisper_copy_kv_cache_single(struct whisper_kv_cache & kv_cache_dst, struct
     kv_cache_dst.cells = kv_cache_src.cells;
     ggml_backend_tensor_copy(kv_cache_src.k, kv_cache_dst.k);
     ggml_backend_tensor_copy(kv_cache_src.v, kv_cache_dst.v);
+}
+
+void whisper_copy_mel_single(whisper_mel & mel_dst, whisper_mel & mel_src) {
+    //ctx_cpu->state->mel = ctx->state->mel;
+    // struct whisper_mel {
+    // int n_len;
+    // int n_len_org;
+    // int n_mel;
+
+    // std::vector<float> data;
+    // };
+    // we want to do deep copy
+    mel_dst.n_len = mel_src.n_len;
+    mel_dst.n_len_org = mel_src.n_len_org;
+    mel_dst.n_mel = mel_src.n_mel;
+    mel_dst.data = mel_src.data;  
 }
