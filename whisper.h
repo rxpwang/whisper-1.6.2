@@ -698,6 +698,7 @@ extern "C" {
     WHISPER_API char WhisperToLowercase(char c);
     WHISPER_API void whisper_copy_mel(struct whisper_context * ctx, struct whisper_context * ctx_cpu);
     WHISPER_API void whisper_copy_kv_cache(struct whisper_context * ctx_dst, struct whisper_context * ctx_src);
+    WHISPER_API void whisper_copy_kv_cache_single(struct whisper_kv_cache & kv_cache_dst, struct whisper_kv_cache & kv_cache_src);
 
 #ifdef __cplusplus
 }

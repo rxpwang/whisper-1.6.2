@@ -8595,12 +8595,20 @@ const std::vector<std::tuple<double, double, std::string>> & reference_transcrip
 
         // copy the current cpu state to gpu
         ctx->state->result_all = ctx_cpu->state->result_all;
+        whisper_kv_cache tmp_kv_cross;
+        kv_cache_init(tmp_kv_cross, ctx->backend, ctx->itype,
+                ctx->model.hparams.n_text_state,
+                ctx->model.hparams.n_text_layer,
+                GGML_PAD(ctx->model.hparams.n_audio_ctx, 256));
+        whisper_copy_kv_cache_single(tmp_kv_cross, ctx_cpu->state->kv_cross);
 
         // copy the current gpu state to cpu
         whisper_kv_cache_clear(ctx_cpu->state->kv_self);
         ctx_cpu->state->logits = ctx->state->logits;
         whisper_copy_kv_cache(ctx_cpu, ctx);
         whisper_copy_mel(ctx_cpu, ctx);
+
+        whisper_copy_kv_cache_single(ctx->state->kv_cross, tmp_kv_cross);
 
         return whisper_full_with_state_for_whisper_streaming_gpu2(ctx, ctx->state, params, seek_delta);
     }
@@ -8676,4 +8684,33 @@ void whisper_copy_kv_cache(struct whisper_context * ctx_dst, struct whisper_cont
     ggml_backend_tensor_copy(ctx_src->state->kv_cross.k, ctx_dst->state->kv_cross.k);
     ggml_backend_tensor_copy(ctx_src->state->kv_cross.v, ctx_dst->state->kv_cross.v);
 
+}
+
+void whisper_copy_kv_cache_single(struct whisper_kv_cache & kv_cache_dst, struct whisper_kv_cache & kv_cache_src) {
+    // ctx_cpu->state->kv_self = ctx->state->kv_self;
+    // ctx_cpu->state->kv_cross = ctx->state->kv_cross;
+    // we want to do deep copy
+    // struct whisper_kv_cache {
+    //     uint32_t head = 0;
+    //     uint32_t size = 0;
+
+    //     // computed before each graph build
+    //     uint32_t n = 0;
+
+    //     std::vector<whisper_kv_cell> cells;
+
+    //     struct ggml_tensor * k;
+    //     struct ggml_tensor * v;
+
+    //     struct ggml_context * ctx = nullptr;
+
+    //     ggml_backend_buffer_t buffer = nullptr;
+    // };
+    // copy the kv_self
+    kv_cache_dst.head = kv_cache_src.head;
+    kv_cache_dst.size = kv_cache_src.size;
+    kv_cache_dst.n = kv_cache_src.n;
+    kv_cache_dst.cells = kv_cache_src.cells;
+    ggml_backend_tensor_copy(kv_cache_src.k, kv_cache_dst.k);
+    ggml_backend_tensor_copy(kv_cache_src.v, kv_cache_dst.v);
 }

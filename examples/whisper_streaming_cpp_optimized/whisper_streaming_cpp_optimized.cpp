@@ -358,7 +358,9 @@ void chunk_completed_segment(std::vector<int64_t>& segment_end_time,
                              std::vector<std::tuple<double, double, std::string>>& commited, 
                              std::vector<float>& audio_buffer,
                              HypothesisBuffer &transcript_buffer,
-                             double& buffer_time_offset) {
+                             double& buffer_time_offset,
+                             int& update_flag,
+                             double& e_for_buffer_time_offset) {
     if (commited.empty()) return;
 
     std::vector<int64_t>& ends = segment_end_time;
@@ -376,10 +378,12 @@ void chunk_completed_segment(std::vector<int64_t>& segment_end_time,
             //std::cout << "--- segment chunked at " << e << std::endl;
             fprintf(stderr, "%s: segement chunked at %f\n", __func__, e);
             // Assuming you have a mechanism to manage transcript_buffer
-            transcript_buffer.pop_committed(e); // Add your logic for transcript management
+            //transcript_buffer.pop_committed(e); // Add your logic for transcript management
             double cut_seconds = e - buffer_time_offset;
             audio_buffer.erase(audio_buffer.begin(), audio_buffer.begin() + static_cast<int>(cut_seconds * WHISPER_SAMPLE_RATE));
-            buffer_time_offset = e;
+            //buffer_time_offset = e;
+            update_flag = 1;
+            e_for_buffer_time_offset = e;
         } else {
             // std::cout << "--- last segment not within committed area" << std::endl;
             fprintf(stderr, "%s: last segment not within committed area\n", __func__);
@@ -617,6 +621,8 @@ int main(int argc, char ** argv) {
     std::vector<float> pcmf32_audio_buffer;
     HypothesisBuffer transcript_buffer;
     double buffer_time_offset = 0;
+    int buffer_time_offset_update_flag = 0;
+    double buffer_time_offset_for_update = 0;
     std::vector<std::tuple<double, double, std::string>> committed;
     size_t num_iterations = 0;
     int prompt_size = 0;
@@ -818,9 +824,15 @@ int main(int argc, char ** argv) {
             std::vector<int64_t> segment_end_time = get_end_time_of_res(ctx);
 
             if (pcmf32_audio_buffer.size() > (s * WHISPER_SAMPLE_RATE)) {
-                chunk_completed_segment(segment_end_time, committed, pcmf32_audio_buffer, transcript_buffer, buffer_time_offset);
+                chunk_completed_segment(segment_end_time, committed, pcmf32_audio_buffer, transcript_buffer, buffer_time_offset, buffer_time_offset_update_flag, buffer_time_offset_for_update);
             }
-
+            if (buffer_time_offset_update_flag == 1) {
+                buffer_time_offset_update_flag += 1;
+            } else if (buffer_time_offset_update_flag == 2) {
+                transcript_buffer.pop_committed(buffer_time_offset_for_update);
+                buffer_time_offset = buffer_time_offset_for_update;
+                buffer_time_offset_update_flag = 0;
+            }
 
             // update the now time stamp after finishing execution
             now = ggml_time_us() / 1000.0 - start;
