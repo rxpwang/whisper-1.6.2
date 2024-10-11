@@ -8575,6 +8575,7 @@ const std::vector<std::tuple<double, double, std::string>> & reference_transcrip
         // copy state to cpu
         whisper_kv_cache_clear(ctx_cpu->state->kv_self);
         ctx_cpu->state->logits = ctx->state->logits;
+        ctx_cpu->state->exp_n_audio_ctx = ctx->state->exp_n_audio_ctx;
         whisper_copy_kv_cache(ctx_cpu, ctx);
         whisper_copy_mel(ctx_cpu, ctx);
         return 0;
@@ -8603,15 +8604,17 @@ const std::vector<std::tuple<double, double, std::string>> & reference_transcrip
         whisper_copy_kv_cache_single(tmp_kv_cross, ctx_cpu->state->kv_cross);
         whisper_mel tmp_mel;
         whisper_copy_mel_single(tmp_mel, ctx_cpu->state->mel);
-
+        int tmp_exp_n_audio_ctx = ctx_cpu->state->exp_n_audio_ctx;
         // copy the current gpu state to cpu
         whisper_kv_cache_clear(ctx_cpu->state->kv_self);
         ctx_cpu->state->logits = ctx->state->logits;
+        ctx_cpu->state->exp_n_audio_ctx = ctx->state->exp_n_audio_ctx;
         whisper_copy_kv_cache(ctx_cpu, ctx);
         whisper_copy_mel(ctx_cpu, ctx);
 
         whisper_copy_kv_cache_single(ctx->state->kv_cross, tmp_kv_cross);
         whisper_copy_mel_single(ctx->state->mel, tmp_mel);
+        ctx->state->exp_n_audio_ctx = tmp_exp_n_audio_ctx;
 
         return whisper_full_with_state_for_whisper_streaming_gpu2(ctx, ctx->state, params, seek_delta);
     }
