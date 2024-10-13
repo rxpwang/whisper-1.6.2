@@ -8615,7 +8615,7 @@ const std::vector<std::tuple<double, double, std::string>> & reference_transcrip
         whisper_copy_kv_cache_single(ctx->state->kv_cross, tmp_kv_cross);
         whisper_copy_mel_single(ctx->state->mel, tmp_mel);
         ctx->state->exp_n_audio_ctx = tmp_exp_n_audio_ctx;
-
+        kv_cache_free(tmp_kv_cross);
         return whisper_full_with_state_for_whisper_streaming_gpu2(ctx, ctx->state, params, seek_delta);
     }
 }
