@@ -8593,7 +8593,8 @@ const std::vector<std::tuple<double, double, std::string>> & reference_transcrip
 
         prompt_size = gpu_future.get();
         int seek_delta = cpu_future.get();
-
+        // measure the time for copying the state from cpu to gpu
+        const int64_t t_start_sample_us = ggml_time_us();
         // copy the current cpu state to gpu
         ctx->state->result_all = ctx_cpu->state->result_all;
         whisper_kv_cache tmp_kv_cross;
@@ -8616,6 +8617,8 @@ const std::vector<std::tuple<double, double, std::string>> & reference_transcrip
         whisper_copy_mel_single(ctx->state->mel, tmp_mel);
         ctx->state->exp_n_audio_ctx = tmp_exp_n_audio_ctx;
         kv_cache_free(tmp_kv_cross);
+        int64_t t_copy_state_us = ggml_time_us() - t_start_sample_us;
+        WHISPER_LOG_DEBUG("%s: the time for copying the state from cpu to gpu is %ld ms\n", __func__, t_copy_state_us/1000);
         return whisper_full_with_state_for_whisper_streaming_gpu2(ctx, ctx->state, params, seek_delta);
     }
 }
