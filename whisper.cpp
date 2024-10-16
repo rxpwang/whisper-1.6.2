@@ -8568,6 +8568,7 @@ int whisper_full_for_whisper_streaming(
     int prompt_size = whisper_full_with_state_for_whisper_streaming(ctx, ctx->state, params, samples, n_samples, reference_transcript_tokens);
     whisper_kv_cache_clear(ctx_cpu->state->kv_self);
     ctx_cpu->state->logits = ctx->state->logits;
+    ctx_cpu->state->exp_n_audio_ctx = ctx->state->exp_n_audio_ctx;
     // ctx_cpu->state->kv_self = ctx->state->kv_self;
     // ctx_cpu->state->kv_cross = ctx->state->kv_cross;
     whisper_copy_kv_cache(ctx_cpu, ctx);
@@ -8576,7 +8577,7 @@ int whisper_full_for_whisper_streaming(
 
     int seek_delta = whisper_full_with_state_for_whisper_streaming_cpu(ctx_cpu, ctx_cpu->state, params, samples, n_samples, reference_transcript_tokens, prompt_size);
     ctx->state->result_all = ctx_cpu->state->result_all;
-
+    ctx->state->exp_n_audio_ctx = ctx_cpu->state->exp_n_audio_ctx;
     return whisper_full_with_state_for_whisper_streaming_gpu2(ctx, ctx->state, params, seek_delta);
 }
 

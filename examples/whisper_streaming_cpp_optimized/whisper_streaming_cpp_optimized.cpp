@@ -488,7 +488,7 @@ int main(int argc, char ** argv) {
     }
 
     struct whisper_context * ctx = whisper_init_from_file_with_params(params.model.c_str(), cparams);
-    cparams.use_gpu = false;
+    //cparams.use_gpu = false;
     struct whisper_context * ctx_cpu = whisper_init_from_file_with_params(params.model.c_str(), cparams);
 
     std::vector<float> pcmf32    (n_samples_30s, 0.0f);
@@ -575,6 +575,7 @@ int main(int argc, char ** argv) {
     std::vector<float> pcmf32_audio_tag;
     if (params.audio_tag != "") {
         pcmf32_audio_tag = readCSVToVector(params.audio_tag);
+        fprintf(stderr, "Audio tag length: %d\n", (int) pcmf32_audio_tag.size());
     }
     /*
     if (!whisper_is_multilingual(ctx)) {
