@@ -7998,17 +7998,19 @@ int whisper_full_with_state_for_whisper_streaming(
 								cur_token_idx_in_reference_prompt,
 								n_decoders_fallback_flag
 							);
+                            if (n_decoders_fallback_flag == 1) {
+                                // then we follow the prompting stage to copy the decoder stage to other decoders
+                                for (int j = 1; j < n_decoders_cur; ++j) {
+                                    auto & decoder = state->decoders[j];
 
-							// then we follow the prompting stage to copy the decoder stage to other decoders
-							for (int j = 1; j < n_decoders_cur; ++j) {
-								auto & decoder = state->decoders[j];
+                                    whisper_kv_cache_seq_cp(state->kv_self, 0, j, -1, -1);
 
-								whisper_kv_cache_seq_cp(state->kv_self, 0, j, -1, -1);
-
-								memcpy(decoder.probs.data(),    state->decoders[0].probs.data(),    decoder.probs.size()*sizeof(decoder.probs[0]));
-								memcpy(decoder.logits.data(),   state->decoders[0].logits.data(),   decoder.logits.size()*sizeof(decoder.logits[0]));
-								memcpy(decoder.logprobs.data(), state->decoders[0].logprobs.data(), decoder.logprobs.size()*sizeof(decoder.logprobs[0]));
-							}
+                                    memcpy(decoder.probs.data(),    state->decoders[0].probs.data(),    decoder.probs.size()*sizeof(decoder.probs[0]));
+                                    memcpy(decoder.logits.data(),   state->decoders[0].logits.data(),   decoder.logits.size()*sizeof(decoder.logits[0]));
+                                    memcpy(decoder.logprobs.data(), state->decoders[0].logprobs.data(), decoder.logprobs.size()*sizeof(decoder.logprobs[0]));
+                                }
+                                n_decoders_fallback_flag = 2;
+                            }
 						}
       
 		                while (cur_c < all_beam_candidates.size() && whisper_sequence_tokens_equal(all_beam_candidates[cur_c].sequence, cur.sequence) && i > 0) {
