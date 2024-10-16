@@ -705,7 +705,7 @@ int main(int argc, char ** argv) {
 
 
             wparams.audio_ctx        = params.audio_ctx;
-            int max_round_decode_tmp = int(float(pcmf32.size()) / WHISPER_SAMPLE_RATE / (params.step_ms / 1000.0)  * params.max_round_decode);
+            int max_round_decode_tmp = int(float(pcmf32.size()) / WHISPER_SAMPLE_RATE * params.max_round_decode);
             wparams.max_round_decode = max_round_decode_tmp;
             wparams.speed_up         = params.speed_up;
 
