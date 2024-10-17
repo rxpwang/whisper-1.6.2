@@ -626,6 +626,7 @@ int main(int argc, char ** argv) {
     std::vector<std::tuple<double, double, std::string>> committed;
     size_t num_iterations = 0;
     int prompt_size = 0;
+    int begin_flag = 0;
     // main audio loop
     while (is_running) {
         num_iterations++;
@@ -660,7 +661,11 @@ int main(int argc, char ** argv) {
             }
             */
             now = ggml_time_us() / 1000.0 - start;
-            if (now < pcmf32_index_end + params.step_ms) {
+            if (begin_flag == 0) {
+                begin_flag = 1;
+                //sleep to get the audio ingest.
+                precise_sleep(2.0);
+            } else if (now < pcmf32_index_end + params.step_ms) {
                 //sleep to get the audio ingest.
                 precise_sleep((params.step_ms + pcmf32_index_end - now) / 1000.0);
             }
