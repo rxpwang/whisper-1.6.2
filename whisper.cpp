@@ -8263,7 +8263,7 @@ std::vector<int> whisper_full_with_state_for_whisper_streaming(
     }
     // end decoding rounds, each decoder now has a sequence of predicted tokens
     // put all the things we need to return in the ret vector
-    ret.insert(ret.end(), {int(prompt.size()), n_decoders_cur, n_decoders_fallback_flag, int(cur_token_idx_in_reference_prompt)});
+    ret.insert(ret.end(), {int(prompt.size()), n_decoders_cur, n_decoders_fallback_flag, int(cur_token_idx_in_reference_prompt), seek, seek_start, seek_end});
     return ret;
 }
 
@@ -8280,9 +8280,9 @@ int whisper_full_with_state_for_whisper_streaming_cpu(
     int best_decoder_id = 0;
     int n_decoders_cur = ret_from_gpu[1];
     const float t_cur = 0;
-    int seek = 0;
-    const int seek_start = params.offset_ms/10;
-    const int seek_end = params.duration_ms == 0 ? whisper_n_len_from_state(state_cpu) : seek_start + params.duration_ms/10; // requires to copy the mel from state to state_cpu
+    int seek = ret_from_gpu[4];
+    const int seek_start = ret_from_gpu[5];
+    const int seek_end = ret_from_gpu[6]; // requires to copy the mel from state to state_cpu
 
     switch (params.strategy) {
         case whisper_sampling_strategy::WHISPER_SAMPLING_GREEDY:
