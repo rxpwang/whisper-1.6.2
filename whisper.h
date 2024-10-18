@@ -611,9 +611,9 @@ extern "C" {
                                    const std::vector<std::tuple<double, double, std::string>> & reference_transcript_tokens,
                                   struct whisper_context * ctx_cpu,
                                 size_t   num_iterations,
-                                   int & prompt_size);
+                      std::vector<int> & ret_from_gpu);
 
-    WHISPER_API int whisper_full_with_state_for_whisper_streaming(
+    WHISPER_API std::vector<int> whisper_full_with_state_for_whisper_streaming(
                 struct whisper_context * ctx,
                   struct whisper_state * state,
             struct whisper_full_params   params,
@@ -700,6 +700,7 @@ extern "C" {
     WHISPER_API void whisper_copy_kv_cache(struct whisper_context * ctx_dst, struct whisper_context * ctx_src);
     WHISPER_API void whisper_copy_kv_cache_single(struct whisper_kv_cache & kv_cache_dst, struct whisper_kv_cache & kv_cache_src);
     WHISPER_API void whisper_copy_mel_single(struct whisper_mel &mel_dst, struct whisper_mel &mel_src);
+    WHISPER_API void whisper_copy_decoders(struct whisper_context * ctx_dst, struct whisper_context * ctx_src);
 
 #ifdef __cplusplus
 }

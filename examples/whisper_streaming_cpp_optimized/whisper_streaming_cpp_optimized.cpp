@@ -626,6 +626,7 @@ int main(int argc, char ** argv) {
     std::vector<std::tuple<double, double, std::string>> committed;
     size_t num_iterations = 0;
     int prompt_size = 0;
+    std::vector<int> ret_from_gpu;
     int begin_flag = 0;
     // main audio loop
     while (is_running) {
@@ -790,7 +791,7 @@ int main(int argc, char ** argv) {
                     reference_transcript_tokens,
                     ctx_cpu,
                     num_iterations,
-                    prompt_size
+                    ret_from_gpu
                 ) != 0) {
                 fprintf(stderr, "%s: failed to process audio\n", argv[0]);
                 return 6;
