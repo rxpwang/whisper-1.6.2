@@ -7518,14 +7518,14 @@ void _bookkeep_optimized_beam_search(
     }
 }
 
-std::vector<int> whisper_full_with_state_for_whisper_streaming(
+gpu_decoder_result whisper_full_with_state_for_whisper_streaming(
         struct whisper_context * ctx,
           struct whisper_state * state,
     struct whisper_full_params   params,
                    const float * samples,
                            int   n_samples,
                    const std::vector<std::tuple<double, double, std::string>> & reference_transcript_tokens) {
-    std::vector<int> ret;
+    gpu_decoder_result return_result;
     print_token_timestamp_vector(reference_transcript_tokens);
 
     auto & result_all = state->result_all;
@@ -7536,13 +7536,13 @@ std::vector<int> whisper_full_with_state_for_whisper_streaming(
         if (params.speed_up) {
             // TODO: Replace PV with more advanced algorithm
             WHISPER_LOG_ERROR("%s: failed to compute log mel spectrogram\n", __func__);
-            ret.insert(ret.end(), {-1});
-            return ret;
+            return_result.status_code = -1;
+            return return_result;
         } else {
             if (whisper_pcm_to_mel_with_state(ctx, state, samples, n_samples, params.n_threads) != 0) {
                 WHISPER_LOG_ERROR("%s: failed to compute log mel spectrogram\n", __func__);
-                ret.insert(ret.end(), {-2});
-                return ret;
+                return_result.status_code = -2;
+                return return_result;
             }
         }
     }
@@ -7554,15 +7554,15 @@ std::vector<int> whisper_full_with_state_for_whisper_streaming(
         const auto lang_id = whisper_lang_auto_detect_with_state(ctx, state, 0, params.n_threads, probs.data());
         if (lang_id < 0) {
             WHISPER_LOG_ERROR("%s: failed to auto-detect language\n", __func__);
-            ret.insert(ret.end(), {-3});
-            return ret;
+            return_result.status_code = -3;
+            return return_result;
         }
         state->lang_id = lang_id;
         params.language = whisper_lang_str(lang_id);
 
         WHISPER_LOG_INFO("%s: auto-detected language: %s (p = %f)\n", __func__, params.language, probs[whisper_lang_id(params.language)]);
         if (params.detect_language) {
-            return ret;
+            return return_result;
         }
     }
 
@@ -7583,7 +7583,7 @@ std::vector<int> whisper_full_with_state_for_whisper_streaming(
     // see issue #39: https://github.com/ggerganov/whisper.cpp/issues/39
     if (seek_end < seek_start + (params.speed_up ? 50 : 100)) {
         WHISPER_LOG_WARN("%s: input is too short - %d ms < 1000 ms. consider padding the input audio with silence\n", __func__, (seek_end - seek_start)*10);
-        return ret;
+        return return_result;
     }
 
     // a set of temperatures to use
@@ -7616,8 +7616,8 @@ std::vector<int> whisper_full_with_state_for_whisper_streaming(
 
     if (n_decoders > WHISPER_MAX_DECODERS) {
         WHISPER_LOG_ERROR("%s: too many decoders requested (%d), max = %d\n", __func__, n_decoders, WHISPER_MAX_DECODERS);
-        ret.insert(ret.end(), {-4});
-        return ret;
+        return_result.status_code = -4;
+        return return_result;
     }
 
     // TAGS: WHISPER_DECODER_INIT
@@ -7671,8 +7671,8 @@ std::vector<int> whisper_full_with_state_for_whisper_streaming(
     // overwrite audio_ctx, max allowed is hparams.n_audio_ctx
     if (params.audio_ctx > whisper_n_audio_ctx(ctx)) {
         WHISPER_LOG_ERROR("%s: audio_ctx is larger than the maximum allowed (%d > %d)\n", __func__, params.audio_ctx, whisper_n_audio_ctx(ctx));
-        ret.insert(ret.end(), {-5});
-        return ret;
+        return_result.status_code = -5;
+        return return_result;
     }
     
     if (params.audio_ctx == -1) {
@@ -7721,8 +7721,8 @@ std::vector<int> whisper_full_with_state_for_whisper_streaming(
     // encode audio features starting at offset seek
     if (!whisper_encode_internal(*ctx, *state, seek, params.n_threads, params.abort_callback, params.abort_callback_user_data)) {
         WHISPER_LOG_ERROR("%s: failed to encode\n", __func__);
-        ret.insert(ret.end(), {-6});
-        return ret;
+        return_result.status_code = -6;
+        return return_result;
     }
 
     
@@ -7734,8 +7734,6 @@ std::vector<int> whisper_full_with_state_for_whisper_streaming(
 
     int best_decoder_id = 0;
 
-    //for (int it = 0; it < (int) temperatures.size(); ++it) {
-    
     const int it = 0; // removing the for loop for temperature fallback, only one temperature is used
     const float t_cur = temperatures[it];
 
@@ -7825,8 +7823,8 @@ std::vector<int> whisper_full_with_state_for_whisper_streaming(
 
     if (!whisper_decode_internal(*ctx, *state, state->batch, params.n_threads, false, params.abort_callback, params.abort_callback_user_data)) {
         WHISPER_LOG_ERROR("%s: failed to decode\n", __func__);
-        ret.insert(ret.end(), {-7});
-        return ret;
+        return_result.status_code = -7;
+        return return_result;
     }
 
     {
@@ -8210,8 +8208,8 @@ std::vector<int> whisper_full_with_state_for_whisper_streaming(
 
             if (!whisper_decode_internal(*ctx, *state, state->batch, params.n_threads, false, params.abort_callback, params.abort_callback_user_data)) {
                 WHISPER_LOG_ERROR("%s: failed to decode\n", __func__);
-                ret.insert(ret.end(), {-8});
-                return ret;
+                return_result.status_code = -8;
+                return return_result;
             }
 
             const int64_t t_start_sample_us = ggml_time_us();
@@ -8263,8 +8261,18 @@ std::vector<int> whisper_full_with_state_for_whisper_streaming(
     }
     // end decoding rounds, each decoder now has a sequence of predicted tokens
     // put all the things we need to return in the ret vector
-    ret.insert(ret.end(), {int(prompt.size()), n_decoders_cur, n_decoders_fallback_flag, int(cur_token_idx_in_reference_prompt), seek, seek_start, seek_end, record_decode_round});
-    return ret;
+    return_result = {
+        .status_code = 0,
+        .prompt_size = prompt.size(),
+        .n_decoders_cur = n_decoders_cur,
+        .n_decoders_fallback_flag = n_decoders_fallback_flag,
+        .cur_token_idx_in_reference_prompt = cur_token_idx_in_reference_prompt,
+        .seek = seek,
+        .seek_start = seek_start,
+        .seek_end = seek_end,
+        .record_decode_round = record_decode_round
+    };
+    return return_result;
 }
 
 int whisper_full_with_state_for_whisper_streaming_cpu(
@@ -8274,15 +8282,15 @@ int whisper_full_with_state_for_whisper_streaming_cpu(
                    const float * samples,
                            int   n_samples,
                    const std::vector<std::tuple<double, double, std::string>> & reference_transcript_tokens,
-                std::vector<int> ret_from_gpu) {
+                gpu_decoder_result ret_from_gpu) {
     // start of the ctx_cpu and state_cpu execution for decoding on CPU
-    int prompt_size = ret_from_gpu[0];
+    int prompt_size = ret_from_gpu.prompt_size;
     int best_decoder_id = 0;
-    int n_decoders_cur = ret_from_gpu[1];
+    int n_decoders_cur = ret_from_gpu.n_decoders_cur;
     const float t_cur = 0;
-    int seek = ret_from_gpu[4];
-    const int seek_start = ret_from_gpu[5];
-    const int seek_end = ret_from_gpu[6]; // requires to copy the mel from state to state_cpu
+    int seek = ret_from_gpu.seek;
+    const int seek_start = ret_from_gpu.seek_start;
+    const int seek_end = ret_from_gpu.seek_end; // requires to copy the mel from state to state_cpu
 
     switch (params.strategy) {
         case whisper_sampling_strategy::WHISPER_SAMPLING_GREEDY:
@@ -8325,7 +8333,7 @@ int whisper_full_with_state_for_whisper_streaming_cpu(
     std::vector<std::vector<beam_candidate>> beam_candidates_per_decoder(n_decoders);
     std::vector<beam_candidate> all_beam_candidates;
     size_t cur_token_idx_in_reference_prompt = -1;
-    int32_t n_decoders_fallback_flag = ret_from_gpu[2];
+    int32_t n_decoders_fallback_flag = ret_from_gpu.n_decoders_fallback_flag;
     auto & result_all = state_cpu->result_all;
     //result_all.clear();
 
@@ -8375,7 +8383,7 @@ int whisper_full_with_state_for_whisper_streaming_cpu(
     WHISPER_LOG_INFO("%s: max decode round: %d\n", __func__, n_max);
     
     // each loop is one decoding round. each round results in one new token in each decoder
-    int cur_decode_round = ret_from_gpu[7];
+    int cur_decode_round = ret_from_gpu.record_decode_round;
     for (int i = cur_decode_round+1; i < n_max; ++i) {
         const int64_t t_start_sample_us = ggml_time_us();
 
@@ -8994,7 +9002,7 @@ int whisper_full_for_whisper_streaming(
 const std::vector<std::tuple<double, double, std::string>> & reference_transcript_tokens,
                                     struct whisper_context * ctx_cpu,
                                                     size_t   num_iterations,
-                                          std::vector<int> & ret_from_gpu) {
+                                        gpu_decoder_result & ret_from_gpu) {
     if (num_iterations == 1) {
         // this is the first iteration, encoding needs to go first
         ret_from_gpu = whisper_full_with_state_for_whisper_streaming(ctx, ctx->state, params, samples, n_samples, reference_transcript_tokens);
@@ -9008,11 +9016,11 @@ const std::vector<std::tuple<double, double, std::string>> & reference_transcrip
         ctx_cpu->state->result_all = ctx->state->result_all;
         return 0;
     } else {
-        std::vector<int> last_ret_from_gpu = ret_from_gpu;
+        gpu_decoder_result last_ret_from_gpu = ret_from_gpu;
         // not the first iteration, the encoding and decoding goes together
         // the gpu decoding part
-        std::future<std::vector<int>> gpu_future = std::async(std::launch::async, whisper_full_with_state_for_whisper_streaming,
-                                                 ctx, ctx->state, params, samples, n_samples, reference_transcript_tokens);
+        std::future<gpu_decoder_result> gpu_future = std::async(std::launch::async, whisper_full_with_state_for_whisper_streaming,
+                                                                ctx, ctx->state, params, samples, n_samples, reference_transcript_tokens);
         
         // the cpu decoding part
         std::future<int> cpu_future = std::async(std::launch::async, whisper_full_with_state_for_whisper_streaming_cpu,

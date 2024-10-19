@@ -159,6 +159,18 @@ extern "C" {
         void  (*close)(void * ctx);
     } whisper_model_loader;
 
+    typedef struct gpu_decoder_result {
+        int status_code;
+        size_t prompt_size;
+        int n_decoders_cur;
+        int n_decoders_fallback_flag;
+        size_t cur_token_idx_in_reference_prompt;
+        int seek;
+        int seek_start;
+        int seek_end;
+        int record_decode_round;
+    } gpu_decoder_result;
+
     // grammar element type
     enum whisper_gretype {
         // end of rule definition
@@ -608,12 +620,12 @@ extern "C" {
             struct whisper_full_params   params,
                            const float * samples,
                                    int   n_samples,
-                                   const std::vector<std::tuple<double, double, std::string>> & reference_transcript_tokens,
-                                  struct whisper_context * ctx_cpu,
+                                 const   std::vector<std::tuple<double, double, std::string>> & reference_transcript_tokens,
+                                struct   whisper_context * ctx_cpu,
                                 size_t   num_iterations,
-                      std::vector<int> & ret_from_gpu);
+                    gpu_decoder_result & ret_from_gpu);
 
-    WHISPER_API std::vector<int> whisper_full_with_state_for_whisper_streaming(
+    WHISPER_API gpu_decoder_result whisper_full_with_state_for_whisper_streaming(
                 struct whisper_context * ctx,
                   struct whisper_state * state,
             struct whisper_full_params   params,
