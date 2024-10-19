@@ -7873,11 +7873,11 @@ std::vector<int> whisper_full_with_state_for_whisper_streaming(
     n_max = reference_transcript_tokens.size() / 2; // set the max decode round to half of the reference transcript length in first gpu execution
     WHISPER_LOG_INFO("%s: max decode round on GPU is half of the reference transcript length: %d\n", __func__, n_max);
     // end of the ctx and state execution for encoding and prompting on GPU
-
+    int record_decode_round = 0;
     // each loop is one decoding round. each round results in one new token in each decoder
     for (int i = 0; i < n_max; ++i) {
         const int64_t t_start_sample_us = ggml_time_us();
-
+        record_decode_round = i;
         if (params.strategy == whisper_sampling_strategy::WHISPER_SAMPLING_BEAM_SEARCH ||
             params.strategy == whisper_sampling_strategy::WHIPSER_SAMPLING_OPTIMIZED_BEAM_SEARCH) {
             for (auto & bc : beam_candidates_per_decoder) {
@@ -8263,7 +8263,7 @@ std::vector<int> whisper_full_with_state_for_whisper_streaming(
     }
     // end decoding rounds, each decoder now has a sequence of predicted tokens
     // put all the things we need to return in the ret vector
-    ret.insert(ret.end(), {int(prompt.size()), n_decoders_cur, n_decoders_fallback_flag, int(cur_token_idx_in_reference_prompt), seek, seek_start, seek_end});
+    ret.insert(ret.end(), {int(prompt.size()), n_decoders_cur, n_decoders_fallback_flag, int(cur_token_idx_in_reference_prompt), seek, seek_start, seek_end, record_decode_round});
     return ret;
 }
 
@@ -8375,7 +8375,8 @@ int whisper_full_with_state_for_whisper_streaming_cpu(
     WHISPER_LOG_INFO("%s: max decode round: %d\n", __func__, n_max);
     
     // each loop is one decoding round. each round results in one new token in each decoder
-    for (int i = 0; i < n_max; ++i) {
+    int cur_decode_round = ret_from_gpu[7];
+    for (int i = cur_decode_round+1; i < n_max; ++i) {
         const int64_t t_start_sample_us = ggml_time_us();
 
         if (params.strategy == whisper_sampling_strategy::WHISPER_SAMPLING_BEAM_SEARCH ||
