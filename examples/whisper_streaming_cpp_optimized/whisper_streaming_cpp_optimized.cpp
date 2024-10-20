@@ -626,7 +626,7 @@ int main(int argc, char ** argv) {
     std::vector<std::tuple<double, double, std::string>> committed;
     size_t num_iterations = 0;
     int prompt_size = 0;
-    std::vector<int> ret_from_gpu;
+    gpu_decoder_result ret_from_gpu;
     int begin_flag = 0;
     // main audio loop
     while (is_running) {
