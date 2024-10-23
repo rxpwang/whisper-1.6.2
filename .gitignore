@@ -68,3 +68,4 @@ local.properties
 benchmarking_results*/
 whisper_streaming_cpp
 whisper_streaming_cpp_optimized
+whisper_streaming_cpp_optimized
