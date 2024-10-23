@@ -227,6 +227,27 @@ void print_tsw(const std::vector<std::tuple<double, double, std::string>>& commi
     }
 }
 
+void print_tsw_with_token_latency(const std::vector<std::tuple<double, double, std::string, double>>& committed) {
+    int count = 0;
+    double latency_sum = 0;
+    for (const auto& entry : committed) {
+        double start_time, end_time, latency;
+        std::string transcript;
+        std::tie(start_time, end_time, transcript, latency) = entry;
+
+        std::cout << "Start Time: " << start_time 
+                  << ", End Time: " << end_time 
+                  << ", Transcript: " << transcript 
+                    << ", Latency: " << latency
+                  << std::endl;
+        count++;
+        latency_sum += latency;
+    }
+    if (count > 0) {
+        std::cout << "Average latency: " << latency_sum / count << std::endl;
+    }
+}
+
 std::vector<std::tuple<double, double, std::string>> output_word_level_timestamp(
                 struct whisper_context * ctx,
                 const whisper_params & params,
@@ -623,6 +644,9 @@ int main(int argc, char ** argv) {
     // whisper_streaming begin_flag. to make the first segment of the audio at least a certain length
     int begin_flag = 0;
 
+    // record the each token latency
+    std::vector<std::tuple<double, double, std::string, double>> latency_record;
+
     // main audio loop
     while (is_running) {
         
@@ -810,6 +834,16 @@ int main(int argc, char ** argv) {
             std::string incomplete_transcript = std::get<2>(the_rest);
             printf("COMPLETE NOW: %s\n", complete_transcript.c_str());
             printf("INCOMPLETE: %s\n", incomplete_transcript.c_str());
+
+            // recording the latency for each token
+            int step_end = (ggml_time_us() / 1000.0 - start) / 1000.0;
+            for (auto& token : o) {
+                double start_time, end_time;
+                std::string transcript;
+                std::tie(start_time, end_time, transcript) = token;
+                double latency = step_end - end_time;
+                latency_record.push_back(std::make_tuple(start_time, end_time, transcript, latency));
+            }
              
             // whisper_streaming audio_buffer management
             int64_t s = 15; // tentative buffer_trimming_sec set to be 15s
@@ -923,6 +957,7 @@ int main(int argc, char ** argv) {
 
     //audio.pause();
     print_tsw(committed);
+    print_tsw_with_token_latency(latency_record);
     whisper_print_timings(ctx);
     whisper_print_timings(ctx_cpu);
     whisper_free(ctx);
