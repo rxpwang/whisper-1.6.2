@@ -61,3 +61,6 @@ cmake-build-debug/
 .cxx/
 .gradle/
 local.properties
+
+
+benchmarking_results*/
