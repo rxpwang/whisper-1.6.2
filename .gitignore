@@ -1,5 +1,7 @@
 *.o
 *.a
+*.log
+*.class
 .cache/
 .coreml/
 .test/

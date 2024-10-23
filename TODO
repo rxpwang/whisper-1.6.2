@@ -1,0 +1,8 @@
+### Measurement improvement
+- per token latency
+- serialized pipeline w/o audio tag
+
+### Profiling
+- pipeline efficiency
+  - bubble time between CPU decoding and GPU decoding
+  - the cause of hallucination
