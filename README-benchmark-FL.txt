@@ -26,7 +26,6 @@ git checkout pipeline
 
 make clean
 make -j4
-
 make whisper_streaming_cpp -j4
 make whisper_streaming_cpp_optimized  -j4
 
