@@ -30,6 +30,6 @@ make whisper_streaming_cpp -j4
 make whisper_streaming_cpp_optimized  -j4
 
 ./whisper_streaming_cpp_benchmarking.sh
-
+# (next - this)
 ./whisper_streaming_cpp_optimized_pipeline_benchmarking.sh
  
