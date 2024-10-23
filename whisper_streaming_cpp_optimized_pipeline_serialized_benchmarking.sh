@@ -19,8 +19,8 @@ step_lengths=(300 400 500)
 # Loop over each step length
 for step in "${step_lengths[@]}"; do
     # Create the log file name based on the parameters, including the current step length
-    log_file="benchmarking_results/whisper_streaming_cpp_optimized_pipeline_serialized_all_gpu_${model}_${sample}_dtw-${dtw}_step-${step}_t-${threads}_token_latency_recorded.log"
-    log_file_no_audio_tag="benchmarking_results/whisper_streaming_cpp_optimized_pipeline_serialized_all_gpu_${model}_${sample}_dtw-${dtw}_step-${step}_t-${threads}_no_tag_token_latency_recorded.log"
+    log_file="benchmarking_results/whisper_streaming_cpp_optimized_pipeline_serialized_all_gpu_${model}_${sample}_dtw-${dtw}_step-${step}_t-${threads}_token_latency_recorded_hallucination_fixed.log"
+    log_file_no_audio_tag="benchmarking_results/whisper_streaming_cpp_optimized_pipeline_serialized_all_gpu_${model}_${sample}_dtw-${dtw}_step-${step}_t-${threads}_no_tag_token_latency_recorded_hallucination_fixed.log"
     
     echo "will Output to $log_file ... running..."
 
