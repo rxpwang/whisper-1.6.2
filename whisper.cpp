@@ -7519,6 +7519,27 @@ void _bookkeep_optimized_beam_search(
     }
 }
 
+bool has_subvector_length_2_repeated_3_times(const std::vector<whisper_token_data>& tokens) {
+    std::unordered_map<std::string, int> subvector_map;
+    int n = tokens.size();
+
+    // Iterate over consecutive pairs (sub-vectors of length 2)
+    for (int i = n-1; i > n / 2; i--) {
+        // Create a string representation of the subvector of length 2
+        std::string subvector_str = std::to_string(tokens[i-1].id) + "," + std::to_string(tokens[i].id);
+        
+        // Increment the count for this sub-vector
+        subvector_map[subvector_str]++;
+        
+        // If the count reaches 3, return true
+        if (subvector_map[subvector_str] == 3) {
+            
+            return true;
+        }
+    }
+    return false;
+}
+
 gpu_decoder_result whisper_full_with_state_for_whisper_streaming(
         struct whisper_context * ctx,
           struct whisper_state * state,
@@ -8663,6 +8684,12 @@ int whisper_full_with_state_for_whisper_streaming_cpu(
             // sometimes, the decoding can get stuck in a repetition loop
             // this is an attempt to mitigate such cases - we flag the decoding as failed and use a fallback strategy
             if (i == n_max - 1 && (result_len == 0 || seek_delta < 100*WHISPER_CHUNK_SIZE/2)) {
+                WHISPER_LOG_INFO("%s: decoder %d: failed due to repetition loop\n", __func__, j);
+                failed = true;
+                continue;
+            }
+
+            if ((i > 20) && has_subvector_length_2_repeated_3_times( decoder.sequence.tokens)) {
                 WHISPER_LOG_INFO("%s: decoder %d: failed due to repetition loop\n", __func__, j);
                 failed = true;
                 continue;
