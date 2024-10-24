@@ -632,7 +632,7 @@ extern "C" {
                            const float * samples,
                                    int   n_samples,
                                    const std::vector<std::tuple<double, double, std::string>> & reference_transcript_tokens,
-                                   std::atomic<int>& inferenceSignal);
+                          volatile int * pInferenceSignal);
 
     // Split the input audio in chunks and process each chunk separately using whisper_full_with_state()
     // Result is stored in the default state of the context

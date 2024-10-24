@@ -7547,7 +7547,7 @@ gpu_decoder_result whisper_full_with_state_for_whisper_streaming(
                    const float * samples,
                            int   n_samples,
                    const std::vector<std::tuple<double, double, std::string>> & reference_transcript_tokens,
-                   std::atomic<int>& inferenceSignal) {
+                  volatile int * pInferenceSignal) {
     gpu_decoder_result return_result;
     print_token_timestamp_vector(reference_transcript_tokens);
 
@@ -8281,7 +8281,7 @@ gpu_decoder_result whisper_full_with_state_for_whisper_streaming(
 
             state->t_sample_us += ggml_time_us() - t_start_sample_us;
         }
-        if (inferenceSignal == 1) {
+        if (*pInferenceSignal == 1) {
             WHISPER_LOG_INFO("%s: inference signal is 1, break the loop\n", __func__);
             break;
         }
@@ -8310,7 +8310,7 @@ int whisper_full_with_state_for_whisper_streaming_cpu(
                            int   n_samples,
                    const std::vector<std::tuple<double, double, std::string>> & reference_transcript_tokens,
                 gpu_decoder_result ret_from_gpu,
-                std::atomic<int>& inferenceSignal) {
+                  volatile int * pInferenceSignal) {
     // start of the ctx_cpu and state_cpu execution for decoding on CPU
     int prompt_size = ret_from_gpu.prompt_size;
     int best_decoder_id = 0;
@@ -8984,7 +8984,7 @@ int whisper_full_with_state_for_whisper_streaming_cpu(
 
 
     //state->result_all = state_cpu->result_all;
-    inferenceSignal = 1;
+    *pInferenceSignal = 1;
     return seek_delta;
 
 }
@@ -9039,10 +9039,12 @@ const std::vector<std::tuple<double, double, std::string>> & reference_transcrip
                                                     size_t   num_iterations,
                                         gpu_decoder_result & ret_from_gpu) {
     // for gpu decoding and cpu decoding sync up. when cpu decoding is finish, gpu deocoding will be notified by this signal.
-    std::atomic<int> inferenceSignal(0);
+    // std::atomic<int> inferenceSignal(0);
+    volatile int inferenceSignal = 0;
+    volatile int* pInferenceSignal = &inferenceSignal;
     if (num_iterations == 1) {
         // this is the first iteration, encoding needs to go first
-        ret_from_gpu = whisper_full_with_state_for_whisper_streaming(ctx, ctx->state, params, samples, n_samples, reference_transcript_tokens, std::ref(inferenceSignal));
+        ret_from_gpu = whisper_full_with_state_for_whisper_streaming(ctx, ctx->state, params, samples, n_samples, reference_transcript_tokens, pInferenceSignal);
         // copy state to cpu
         whisper_kv_cache_clear(ctx_cpu->state->kv_self);
         ctx_cpu->state->logits = ctx->state->logits;
@@ -9058,11 +9060,11 @@ const std::vector<std::tuple<double, double, std::string>> & reference_transcrip
         // not the first iteration, the encoding and decoding goes together
         // the gpu decoding part
         std::future<gpu_decoder_result> gpu_future = std::async(std::launch::async, whisper_full_with_state_for_whisper_streaming,
-                                                                ctx, ctx->state, params, samples, n_samples, reference_transcript_tokens, std::ref(inferenceSignal));
+                                                                ctx, ctx->state, params, samples, n_samples, reference_transcript_tokens, pInferenceSignal);
         
         // the cpu decoding part
         std::future<int> cpu_future = std::async(std::launch::async, whisper_full_with_state_for_whisper_streaming_cpu,
-                                                 ctx_cpu, ctx_cpu->state, params, samples, n_samples, reference_transcript_tokens, last_ret_from_gpu, std::ref(inferenceSignal));
+                                                 ctx_cpu, ctx_cpu->state, params, samples, n_samples, reference_transcript_tokens, last_ret_from_gpu, pInferenceSignal);
 
         ret_from_gpu = gpu_future.get();
         int seek_delta = cpu_future.get();
