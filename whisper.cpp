@@ -7891,7 +7891,8 @@ gpu_decoder_result whisper_full_with_state_for_whisper_streaming(
     }
 
     int n_max = whisper_n_text_ctx(ctx)/2 - 4;
-    n_max = reference_transcript_tokens.size() * 2 / 3; // set the max decode round to half of the reference transcript length in first gpu execution
+    // n_max = reference_transcript_tokens.size() * 2 / 3; // set the max decode round to half of the reference transcript length in first gpu execution
+    n_max = reference_transcript_tokens.size();
     WHISPER_LOG_INFO("%s: max decode round on GPU is half of the reference transcript length: %d\n", __func__, n_max);
     // end of the ctx and state execution for encoding and prompting on GPU
     int record_decode_round = 0;
