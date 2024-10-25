@@ -714,6 +714,7 @@ extern "C" {
     WHISPER_API void whisper_copy_kv_cache_single(struct whisper_kv_cache & kv_cache_dst, struct whisper_kv_cache & kv_cache_src);
     WHISPER_API void whisper_copy_mel_single(struct whisper_mel &mel_dst, struct whisper_mel &mel_src);
     WHISPER_API void whisper_copy_decoders(struct whisper_context * ctx_dst, struct whisper_context * ctx_src);
+    WHISPER_API void whisper_exchange_decoders(struct whisper_context * ctx_dst, struct whisper_context * ctx_src);
 
 #ifdef __cplusplus
 }
