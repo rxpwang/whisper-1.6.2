@@ -9659,6 +9659,7 @@ const std::vector<std::tuple<double, double, std::string>> & reference_transcrip
 
         int64_t t_copy_state_us = ggml_time_us() - t_start_sample_us;
         WHISPER_LOG_DEBUG("%s: the time for copying the state from cpu to gpu is %ld ms\n", __func__, t_copy_state_us/1000);
+        inferenceSignal = 0;
         // the gpu decoding part
         std::future<int> gpu_future1 = std::async(std::launch::async, whisper_full_with_state_for_whisper_streaming_gpu1,
                                                                 ctx, ctx->state, params, samples, n_samples, reference_transcript_tokens, ret_from_cpu, pInferenceSignal);
