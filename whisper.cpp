@@ -5288,6 +5288,7 @@ static std::vector<whisper_token_data> whisper_sample_token_topk(
     WHISPER_LOG_DEBUG("%s: start of sampling of a specific decoder\n", __func__);
     for (int i = 0; i < k; ++i) {
         const auto id = dist(decoder.rng);
+        //const auto id = logits_id[i].second; // make the sampling deterministic
         //printf("XXX %d %d %f %f %f %f\n", id, tid, probs[id], logprobs[id], pt, ptsum);
         WHISPER_LOG_DEBUG("%s: XXX %d %d %f %f %f %f\n", __func__, id, tid, probs[id], logprobs[id], pt, ptsum);
         result.push_back({ id, tid, probs[id], logprobs[id], pt, ptsum, -1, -1, -1, 0.0f, });
@@ -7891,7 +7892,7 @@ gpu_decoder_result whisper_full_with_state_for_whisper_streaming(
     }
 
     int n_max = whisper_n_text_ctx(ctx)/2 - 4;
-    n_max = reference_transcript_tokens.size() * 1 / 3; // set the max decode round to half of the reference transcript length in first gpu execution
+    n_max = reference_transcript_tokens.size() * 1 / 2; // set the max decode round to half of the reference transcript length in first gpu execution
     // n_max = reference_transcript_tokens.size();
     WHISPER_LOG_INFO("%s: max decode round on GPU is half of the reference transcript length: %d\n", __func__, n_max);
     // end of the ctx and state execution for encoding and prompting on GPU
@@ -8944,8 +8945,15 @@ int whisper_full_with_state_for_whisper_streaming_gpu1(
     WHISPER_LOG_INFO("%s: max decode round: %d\n", __func__, n_max);
     
     // each loop is one decoding round. each round results in one new token in each decoder
+    int batchd_round_count = 0;
     int cur_decode_round = ret_from_gpu.record_decode_round;
     for (int i = cur_decode_round+1; i < n_max; ++i) {
+        if (n_decoders_cur > 1) {
+            batchd_round_count++;
+            if (batchd_round_count > 15) {
+                break;
+            }
+        }
         const int64_t t_start_sample_us = ggml_time_us();
 
         if (params.strategy == whisper_sampling_strategy::WHISPER_SAMPLING_BEAM_SEARCH ||
