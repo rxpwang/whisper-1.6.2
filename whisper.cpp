@@ -8415,7 +8415,8 @@ gpu_decoder_result whisper_full_with_state_for_whisper_streaming_cpu(
     int n_max = whisper_n_text_ctx(ctx_cpu)/2 - 4;
     n_max = (n_max < params.max_round_decode) ? n_max : params.max_round_decode;
     WHISPER_LOG_INFO("%s: max decode round: %d\n", __func__, n_max);
-    int record_decode_round = ret_from_gpu.record_decode_round;
+    // this variable record how many decoding round is done on the cpu side
+    int record_decode_round;
     // each loop is one decoding round. each round results in one new token in each decoder
     int cur_decode_round = ret_from_gpu.record_decode_round;
     for (int i = cur_decode_round+1; i < n_max; ++i) {
