@@ -5,7 +5,7 @@
             "type": "cppdbg",
             "request": "launch",
             "program": "${workspaceRoot}/whisper_streaming_cpp_optimized",
-            "args": ["-m", "models/ggml-medium.bin", "samples/bernie4min.wav", "-kc", "-dtw", "medium", "--step", "300"],
+            "args": ["-m", "models/ggml-medium.bin", "samples/bernie30s.wav", "-kc", "-dtw", "medium", "--step", "300"],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}",
             "environment": [],
