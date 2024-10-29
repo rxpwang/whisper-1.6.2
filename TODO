@@ -6,3 +6,34 @@
 - pipeline efficiency
   - bubble time between CPU decoding and GPU decoding
   - the cause of hallucination
+
+
+### M2 / M4 evaluation
+| system | whisper-base | whisper-medium|
+| ------ | --------------| ---|
+| ours (pipeline-v1) |  |   | 
+| serialized |  |  |
+| baseline   |  |  |
+
+
+### M2 Pro evaluation
+| system | whisper-base | whisper-medium |
+| ------ | --------------| ---|
+| ours (pipeline-v1) |      | w/ tag: 1570ms, w/o tag: 3380ms | 
+| serialized         |      | w/ tag: 1150ms, w/o tag: 8711ms |
+| baseline           |      | w/ tag: 3295ms, w/o tag: -      |
+
+
+### M2 Ultra evaluation
+| system | whisper-medium | whisper-large|
+| ------ | --------------| ---|
+| ours (pipeline-v1) |  |   | 
+| serialized |  |  |
+| baseline   |  |  |
+
+### M2 Max evaluation
+| system | whisper-medium | whisper-large|
+| ------ | --------------| ---|
+| ours (pipeline-v1) |  |   | 
+| serialized |  |  |
+| baseline   |  |  |
