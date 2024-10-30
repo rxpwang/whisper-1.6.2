@@ -1,11 +1,15 @@
 ### Measurement improvement
-- per token latency
-- serialized pipeline w/o audio tag
+- per token latency [done]
+- serialized pipeline w/o audio tag [done]
 
 ### Profiling
 - pipeline efficiency
-  - bubble time between CPU decoding and GPU decoding
-  - the cause of hallucination
+  - bubble time between CPU decoding and GPU decoding [done]
+  - the cause of hallucination [done]
+
+### Bugs
+- segfault
+  - buffer.insert might segfault for ngram size of 2
 
 
 ### M2 / M4 evaluation
