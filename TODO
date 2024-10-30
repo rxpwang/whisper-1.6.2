@@ -9,15 +9,15 @@
 
 ### Bugs
 - segfault
-  - buffer.insert might segfault for ngram size of 2
+  - buffer.insert might segfault for ngram size of 2 [done]
 
 
 ### M2 / M4 evaluation
 | system | whisper-base | whisper-medium|
 | ------ | --------------| ---|
-| ours (pipeline-v1) |  |   | 
-| serialized |  |  |
-| baseline   |  |  |
+| ours (pipeline-v1) |  | w/ tag: 4722.0 (+-528.1) ms,| 
+| serialized |  | w/ tag: 3014.0 (+-437.3) ms, |
+| baseline   |  | w/o tag: 7434.0 (+-1058.8) ms, |
 
 
 ### M2 Pro evaluation (using 7 P cores and 19 GPU cores)
