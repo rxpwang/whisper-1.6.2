@@ -166,7 +166,7 @@ class HypothesisBuffer {
                                     words.push_back(ss.str());
                                 }
                                 std::ostringstream oss_word;
-                                for (size_t j=0; j<=words.size(); j++) {
+                                for (size_t j=0; j<words.size(); j++) {
                                     if (j!=0) {
                                         oss_word << " ";
                                     }
