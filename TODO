@@ -21,12 +21,20 @@
 
 
 ### M2 Pro evaluation (using 7 P cores and 19 GPU cores)
+#### Major result
 | system | whisper-base | whisper-medium |
 | ------ | --------------| ---|
 | ours (pipeline-v1) |      | w/ tag: 1360.9 (+-92.6) ms, w/o tag: 2838 (+-164.5) ms | 
 | serialized         |      | w/ tag: 1362.6 (+-144.3) ms, w/o tag: 2766.0 (+-57.0) ms |
 | baseline           |      | w/ tag: 3079.3 (+-260.7) ms, w/o tag: 3396.1 (+-30.9) ms |
 
+
+#### Grid search on CPU / GPU function CPU thread counts
+| Ours | w/ audio tag | w/o audio tag |
+| ------------ | ------------ | ------------- |
+| CPU:5, GPU:3 | 1258.9 (+-212.8) ms | 2610.8 (+-21.9) ms |
+| CPU:6, GPU:2 | 1393.8 (+-159.3) ms | 2628.9 (+-53.6) ms |
+| CPU:7, GPU:1 | 1309.0 (+-60.6) ms  | 2585.3 (+-62.1) ms |
 
 ### M2 Ultra evaluation
 | system | whisper-medium | whisper-large|
