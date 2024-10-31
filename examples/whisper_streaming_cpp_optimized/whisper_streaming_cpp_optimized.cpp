@@ -16,6 +16,8 @@
 #include <fstream>
 #include <cstring>
 
+int num_cpu_threads = -1;
+int num_gpu_threads = -1;
 
 // command-line parameters
 struct whisper_params {
@@ -43,6 +45,8 @@ struct whisper_params {
     bool save_audio    = false; // save audio to wav file
     bool use_gpu       = true;
     bool flash_attn    = false;
+    int  num_cpu_threads = 4;
+    int  num_gpu_threads = 4;
 
     std::string language  = "en";
     std::string model     = "models/ggml-base.en.bin";
@@ -98,6 +102,8 @@ bool whisper_params_parse(int argc, char ** argv, whisper_params & params) {
         else if (arg == "-m"    || arg == "--model")         { params.model         = argv[++i]; }
         //else if (arg == "-f"    || arg == "--file")          { params.fname_out     = argv[++i]; }
         else if (arg == "-of"   || arg == "--output-file")     { params.fname_out.emplace_back(argv[++i]); }
+        else if (arg == "-gt"   || arg == "--gpu-threads")     { std::stoi(argv[++i]); }
+        else if (arg == "-ct"   || arg == "--cpu-threads")     { std::stoi(argv[++i]); }
         else if (arg == "-tdrz" || arg == "--tinydiarize")   { params.tinydiarize   = true; }
         else if (arg == "-sa"   || arg == "--save-audio")    { params.save_audio    = true; }
         else if (arg == "-ng"   || arg == "--no-gpu")        { params.use_gpu       = false; }
@@ -467,6 +473,15 @@ int main(int argc, char ** argv) {
     params.no_timestamps = false;
     params.no_context    |= use_vad;
     params.max_tokens     = 0;
+
+    // if cpu and gpu threads are not set, use the same number of threads
+    if (num_cpu_threads == -1 || num_gpu_threads == -1) {
+        num_cpu_threads = params.n_threads;
+        num_gpu_threads = params.n_threads;
+    } else {
+        num_cpu_threads = params.num_cpu_threads;
+        num_gpu_threads = params.num_gpu_threads;
+    }
 
     // init audio
     /* 

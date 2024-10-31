@@ -81,7 +81,9 @@ extern "C" {
     struct whisper_context;
     struct whisper_state;
     struct whisper_full_params;
-    
+
+    extern int num_cpu_threads;
+    extern int num_gpu_threads;
 
     typedef int32_t whisper_pos;
     typedef int32_t whisper_token;
