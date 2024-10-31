@@ -45,8 +45,8 @@ struct whisper_params {
     bool save_audio    = false; // save audio to wav file
     bool use_gpu       = true;
     bool flash_attn    = false;
-    int  num_cpu_threads = 4;
-    int  num_gpu_threads = 4;
+    int  num_cpu_threads = -1;
+    int  num_gpu_threads = -1;
 
     std::string language  = "en";
     std::string model     = "models/ggml-base.en.bin";
@@ -474,14 +474,17 @@ int main(int argc, char ** argv) {
     params.no_context    |= use_vad;
     params.max_tokens     = 0;
 
-    // if cpu and gpu threads are not set, use the same number of threads
-    if (num_cpu_threads == -1 || num_gpu_threads == -1) {
+    // if cpu and gpu threads are not set, use the input for number of threads
+    if (params.num_cpu_threads == -1 || params.num_gpu_threads == -1) {
         num_cpu_threads = params.n_threads;
         num_gpu_threads = params.n_threads;
     } else {
         num_cpu_threads = params.num_cpu_threads;
         num_gpu_threads = params.num_gpu_threads;
     }
+
+    fprintf(stderr, "Thread number search: using %d threads for CPU and %d threads for GPU\n",
+            num_cpu_threads, num_gpu_threads);
 
     // init audio
     /* 
