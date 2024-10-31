@@ -49,8 +49,20 @@ Using 10 cores, part of them is E cores
 | baseline   |  |  |
 
 ### M2 Max evaluation
+#### Major result
 | system | whisper-medium | whisper-large|
 | ------ | --------------| ---|
-| ours (pipeline-v1) |  |   | 
-| serialized |  |  |
-| baseline   |  |  |
+| ours (pipeline-v1) | w/ tag: 807.2 (+-69.3) ms, w/o tag: 1658.3 (+-71.8) ms |   | 
+| serialized | w/ tag: 897.7 (+-127.4) ms, w/o tag: 1826.5 (+-147.8) ms |  |
+| baseline   | w/ tag: 3423.7 (+-988.6) ms, w/o tag: 2524.5 (+-334.7) ms |  |
+
+#### Grid search on CPU / GPU function CPU thread counts
+Using 10 cores, part of them is E cores
+
+| Ours | w/ audio tag | w/o audio tag |
+| ------------ | ------------ | ------------- |
+| CPU:9, GPU:1 | - | - |
+| CPU:8, GPU:2 | - | - |
+| CPU:7, GPU:3 | 949.3 (+-97.6) ms | 1654.2 (+-9.6) ms |
+| CPU:6, GPU:4 | 807.2 (+-69.3) ms  | 1658.3 (+-71.8) ms |
+| CPU:5, GPU:5 | 920.2 (+-198.0) ms  | 1604.9 (+-38.2) ms |
