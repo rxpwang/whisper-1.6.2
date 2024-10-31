@@ -102,8 +102,8 @@ bool whisper_params_parse(int argc, char ** argv, whisper_params & params) {
         else if (arg == "-m"    || arg == "--model")         { params.model         = argv[++i]; }
         //else if (arg == "-f"    || arg == "--file")          { params.fname_out     = argv[++i]; }
         else if (arg == "-of"   || arg == "--output-file")     { params.fname_out.emplace_back(argv[++i]); }
-        else if (arg == "-gt"   || arg == "--gpu-threads")     { std::stoi(argv[++i]); }
-        else if (arg == "-ct"   || arg == "--cpu-threads")     { std::stoi(argv[++i]); }
+        else if (arg == "-gt"   || arg == "--gpu-threads")     { params.num_gpu_threads = std::stoi(argv[++i]); }
+        else if (arg == "-ct"   || arg == "--cpu-threads")     { params.num_cpu_threads = std::stoi(argv[++i]); }
         else if (arg == "-tdrz" || arg == "--tinydiarize")   { params.tinydiarize   = true; }
         else if (arg == "-sa"   || arg == "--save-audio")    { params.save_audio    = true; }
         else if (arg == "-ng"   || arg == "--no-gpu")        { params.use_gpu       = false; }

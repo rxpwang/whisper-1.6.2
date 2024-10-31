@@ -7563,7 +7563,7 @@ gpu_decoder_result whisper_full_with_state_for_whisper_streaming(
             return_result.status_code = -1;
             return return_result;
         } else {
-            if (whisper_pcm_to_mel_with_state(ctx, state, samples, n_samples, num_gpu_threads) != 0) {
+            if (whisper_pcm_to_mel_with_state(ctx, state, samples, n_samples, params.n_threads) != 0) {
                 WHISPER_LOG_ERROR("%s: failed to compute log mel spectrogram\n", __func__);
                 return_result.status_code = -2;
                 return return_result;
@@ -7845,7 +7845,7 @@ gpu_decoder_result whisper_full_with_state_for_whisper_streaming(
 
     whisper_batch_prep_legacy(state->batch, prompt.data(), prompt.size(), 0, 0);
 
-    if (!whisper_decode_internal(*ctx, *state, state->batch, num_gpu_threads, false, params.abort_callback, params.abort_callback_user_data)) {
+    if (!whisper_decode_internal(*ctx, *state, state->batch, params.n_threads, false, params.abort_callback, params.abort_callback_user_data)) {
         WHISPER_LOG_ERROR("%s: failed to decode\n", __func__);
         return_result.status_code = -7;
         return return_result;
@@ -7958,7 +7958,7 @@ gpu_decoder_result whisper_full_with_state_for_whisper_streaming(
                 }
             };
 
-            const int n_threads = std::min(num_gpu_threads, n_decoders_cur);
+            const int n_threads = std::min(params.n_threads, n_decoders_cur);
 
             if (n_threads == 1) {
                 get_next_token();
@@ -8231,7 +8231,7 @@ gpu_decoder_result whisper_full_with_state_for_whisper_streaming(
             //     return -8;
             // }
 
-            if (!whisper_decode_internal(*ctx, *state, state->batch, num_gpu_threads, false, params.abort_callback, params.abort_callback_user_data)) {
+            if (!whisper_decode_internal(*ctx, *state, state->batch, params.n_threads, false, params.abort_callback, params.abort_callback_user_data)) {
                 WHISPER_LOG_ERROR("%s: failed to decode\n", __func__);
                 return_result.status_code = -8;
                 return return_result;
@@ -8262,7 +8262,7 @@ gpu_decoder_result whisper_full_with_state_for_whisper_streaming(
                     }
                 };
 
-                const int n_threads = std::min(num_gpu_threads, n_decoders_cur);
+                const int n_threads = std::min(params.n_threads, n_decoders_cur);
 
                 if (n_threads == 1) {
                     get_next_token_logit();
@@ -8479,7 +8479,7 @@ gpu_decoder_result whisper_full_with_state_for_whisper_streaming_cpu(
                 }
             };
 
-            const int n_threads = std::min(num_cpu_threads, n_decoders_cur);
+            const int n_threads = std::min(params.n_threads, n_decoders_cur);
 
             if (n_threads == 1) {
                 get_next_token();
@@ -8758,7 +8758,7 @@ gpu_decoder_result whisper_full_with_state_for_whisper_streaming_cpu(
             //     return -8;
             // }
 
-            if (!whisper_decode_internal(*ctx_cpu, *state_cpu, state_cpu->batch, num_cpu_threads, false, params.abort_callback, params.abort_callback_user_data)) {
+            if (!whisper_decode_internal(*ctx_cpu, *state_cpu, state_cpu->batch, params.n_threads, false, params.abort_callback, params.abort_callback_user_data)) {
                 WHISPER_LOG_ERROR("%s: failed to decode\n", __func__);
                 //return -8;
             }
@@ -8789,7 +8789,7 @@ gpu_decoder_result whisper_full_with_state_for_whisper_streaming_cpu(
                     }
                 };
 
-                const int n_threads = std::min(num_cpu_threads, n_decoders_cur);
+                const int n_threads = std::min(params.n_threads, n_decoders_cur);
 
                 if (n_threads == 1) {
                     get_next_token_logit();
@@ -9014,7 +9014,7 @@ int whisper_full_with_state_for_whisper_streaming_gpu1(
                 }
             };
 
-            const int n_threads = std::min(num_gpu_threads, n_decoders_cur);
+            const int n_threads = std::min(params.n_threads, n_decoders_cur);
 
             if (n_threads == 1) {
                 get_next_token();
@@ -9293,7 +9293,7 @@ int whisper_full_with_state_for_whisper_streaming_gpu1(
             //     return -8;
             // }
 
-            if (!whisper_decode_internal(*ctx_cpu, *state_cpu, state_cpu->batch, num_gpu_threads, false, params.abort_callback, params.abort_callback_user_data)) {
+            if (!whisper_decode_internal(*ctx_cpu, *state_cpu, state_cpu->batch, params.n_threads, false, params.abort_callback, params.abort_callback_user_data)) {
                 WHISPER_LOG_ERROR("%s: failed to decode\n", __func__);
                 return -8;
             }
@@ -9324,7 +9324,7 @@ int whisper_full_with_state_for_whisper_streaming_gpu1(
                     }
                 };
 
-                const int n_threads = std::min(num_gpu_threads, n_decoders_cur);
+                const int n_threads = std::min(params.n_threads, n_decoders_cur);
 
                 if (n_threads == 1) {
                     get_next_token_logit();
@@ -9531,7 +9531,7 @@ int whisper_full_with_state_for_whisper_streaming_gpu1(
         if (ctx_cpu->params.dtw_token_timestamps && n_segments) {
             const int n_frames = std::min(std::min(WHISPER_CHUNK_SIZE * 100, seek_delta), seek_end - seek);
             whisper_exp_compute_token_level_timestamps_dtw(
-                    ctx_cpu, state_cpu, params, result_all.size() - n_segments, n_segments, seek, n_frames, 7, num_gpu_threads);
+                    ctx_cpu, state_cpu, params, result_all.size() - n_segments, n_segments, seek, n_frames, 7, params.n_threads);
         }
     }
     
@@ -9565,7 +9565,7 @@ int whisper_full_with_state_for_whisper_streaming_gpu2(
         WHISPER_LOG_DEBUG("%s: n_segments = %d, seek = %d, seek_delta = %d, seek_end = %d, n_frames = %d\n", __func__, n_segments, seek, seek_delta, seek_end, n_frames);
         WHISPER_LOG_DEBUG("%s: the result_all.size() originally is %d\n", __func__, state->result_all.size());
         whisper_exp_compute_token_level_timestamps_dtw(
-                ctx, state, params, state->result_all.size() - n_segments, n_segments, seek, n_frames, 7, num_gpu_threads);
+                ctx, state, params, state->result_all.size() - n_segments, n_segments, seek, n_frames, 7, params.n_threads);
         // whisper_exp_compute_token_level_timestamps_dtw(
         //         ctx_cpu, state_cpu, params, result_all.size() - n_segments, n_segments, seek, n_frames, 7, params.n_threads);
     }
@@ -9596,6 +9596,7 @@ const std::vector<std::tuple<double, double, std::string>> & reference_transcrip
     volatile int* pInferenceSignal = &inferenceSignal;
     if (num_iterations == 1) {
         // this is the first iteration, encoding needs to go first
+        params.n_threads = num_gpu_threads;
         ret_from_gpu = whisper_full_with_state_for_whisper_streaming(ctx, ctx->state, params, samples, n_samples, reference_transcript_tokens, pInferenceSignal);
         // copy state to cpu
         whisper_kv_cache_clear(ctx_cpu->state->kv_self);
@@ -9612,10 +9613,12 @@ const std::vector<std::tuple<double, double, std::string>> & reference_transcrip
         gpu_decoder_result ret_from_cpu;
         // not the first iteration, the encoding and decoding goes together
         // the gpu decoding part
+        params.n_threads = num_gpu_threads;
         std::future<gpu_decoder_result> gpu_future = std::async(std::launch::async, whisper_full_with_state_for_whisper_streaming,
                                                                 ctx, ctx->state, params, samples, n_samples, reference_transcript_tokens, pInferenceSignal);
         
         // the cpu decoding part
+        params.n_threads = num_cpu_threads;
         std::future<gpu_decoder_result> cpu_future = std::async(std::launch::async, whisper_full_with_state_for_whisper_streaming_cpu,
                                                  ctx_cpu, ctx_cpu->state, params, samples, n_samples, reference_transcript_tokens, last_ret_from_gpu, pInferenceSignal);
 
@@ -9670,10 +9673,12 @@ const std::vector<std::tuple<double, double, std::string>> & reference_transcrip
         WHISPER_LOG_DEBUG("%s: the time for copying the state from cpu to gpu is %ld ms\n", __func__, t_copy_state_us/1000);
         inferenceSignal = 0;
         // the gpu decoding part
+        params.n_threads = num_gpu_threads;
         std::future<int> gpu_future1 = std::async(std::launch::async, whisper_full_with_state_for_whisper_streaming_gpu1,
                                                                 ctx, ctx->state, params, samples, n_samples, reference_transcript_tokens, ret_from_cpu, pInferenceSignal);
         
         // the cpu decoding part
+        params.n_threads = num_cpu_threads;
         std::future<gpu_decoder_result> cpu_future1 = std::async(std::launch::async, whisper_full_with_state_for_whisper_streaming_cpu,
                                                  ctx_cpu, ctx_cpu->state, params, samples, n_samples, reference_transcript_tokens, ret_from_gpu, pInferenceSignal);
 
