@@ -16,21 +16,25 @@ fi
 runs=5
 step=100
 max_decoder=5
+base_directory="benchmarking_results"
+exp_name="thread_count_search"
 # CPU can use at least `max_decoder` threads
+result_dir="${base_directory}/${exp_name}"
+mkdir -p $result_dir
 for cpu_threads in $(seq $max_decoder $(($total_threads-1))); do
     # Run each config for `runs` times
     for i in $(seq 1 $runs); do
         gpu_threads=$(($total_threads - $cpu_threads))
         echo "Run ${i} cpu threads: ${cpu_threads}, gpu threads: ${gpu_threads}"
         # Create the log file name based on the parameters, including the current step length
-        log_file="benchmarking_results/pipeline-v1_${model}_${sample}_dtw-${dtw}_step-${step}_ct-${cpu_threads}_gt-${gpu_threads}_with_audio_tag_hallucination_fixed_run-${i}.log"
-        log_file_no_audio_tag="benchmarking_results/pipeline-v1_${model}_${sample}_dtw-${dtw}_step-${step}_ct-${cpu_threads}_gt-${gpu_threads}_run-${i}.log"
+        log_file="pipeline-v1_${model}_${sample}_dtw-${dtw}_step-${step}_ct-${cpu_threads}_gt-${gpu_threads}_with_audio_tag_hallucination_fixed_run-${i}.log"
+        log_file_no_audio_tag="pipeline-v1_${model}_${sample}_dtw-${dtw}_step-${step}_ct-${cpu_threads}_gt-${gpu_threads}_run-${i}.log"
         
         # Run the command and redirect the output to the log file
-        ./whisper_streaming_cpp_optimized -m models/$model samples/$sample -kc -dtw $dtw -ac -1 -at audio_tag/medium_0.5s_avg.csv --step $step -ct $cpu_threads -gt $gpu_threads > $log_file 2>&1
-        echo "Output has been logged to ${log_file}"
-        ./whisper_streaming_cpp_optimized -m models/$model samples/$sample -kc -dtw $dtw --step $step -ct $cpu_threads -gt $gpu_threads > $log_file_no_audio_tag 2>&1
-        echo "Output has been logged to ${log_file_no_audio_tag}"
+        ./whisper_streaming_cpp_optimized -m models/$model samples/$sample -kc -dtw $dtw -ac -1 -at audio_tag/medium_0.5s_avg.csv --step $step -ct $cpu_threads -gt $gpu_threads > $result_dir/$log_file 2>&1
+        echo "Output has been logged to ${result_dir}/${log_file}"
+        ./whisper_streaming_cpp_optimized -m models/$model samples/$sample -kc -dtw $dtw --step $step -ct $cpu_threads -gt $gpu_threads > $result_dir/$log_file_no_audio_tag 2>&1
+        echo "Output has been logged to ${result_dir}/${log_file_no_audio_tag}"
     done
 done
 
