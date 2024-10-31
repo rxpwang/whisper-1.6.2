@@ -9,10 +9,10 @@ sample="bernie4min.wav"
 threads=10
 
 # Array of different step lengths to loop through
-step=100
+step=10
 
 # Number of repetitions
-repetitions=10
+repetitions=5
 
 # Loop over each step length
 for i in $(seq 1 $repetitions); do

@@ -13,10 +13,10 @@ if [ -z "$threads" ]; then
 fi
 
 # Single step length value
-step=100
+step=10
 
 # Number of repetitions
-repetitions=10
+repetitions=5
 
 # Run the experiment 7 times
 for i in $(seq 1 $repetitions); do

@@ -614,7 +614,7 @@ int main(int argc, char ** argv) {
     HypothesisBuffer transcript_buffer;
     double buffer_time_offset = 0;
     std::vector<std::tuple<double, double, std::string>> committed;
-
+    int begin_flag = 0;
     // record the each token latency
     std::vector<std::tuple<double, double, std::string, double>> latency_record;
 
@@ -652,7 +652,11 @@ int main(int argc, char ** argv) {
             }
             */
             now = ggml_time_us() / 1000.0 - start;
-            if (now < pcmf32_index_end + params.step_ms) {
+            if (begin_flag == 0) {
+                begin_flag = 1;
+                //sleep to get the audio ingest.
+                precise_sleep(2.0);
+            } else if (now < pcmf32_index_end + params.step_ms) {
                 //sleep to get the audio ingest.
                 precise_sleep((params.step_ms + pcmf32_index_end - now) / 1000.0);
             }
