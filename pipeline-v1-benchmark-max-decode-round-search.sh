@@ -20,11 +20,11 @@ fi
 
 # Array of different step lengths to loop through
 runs=5
-step=100
+step=10
 cpu_threads=5 # use at least 5 threads for CPU functions
 gpu_threads=$(($total_threads-$cpu_threads))
 # Swap the values if gpu_threads is greater than cpu_threads
-if [ $gpu_threads -gt $cpu_threads]; then
+if [ $gpu_threads -gt $cpu_threads ]; then
     $tmp=$gpu_threads
     $gpu_threads=$cpu_threads
     $cpu_threads=$tmp
@@ -35,13 +35,14 @@ exp_name="max_decode_round_search"
 # CPU can use at least `max_decoder` threads
 result_dir="${base_directory}/${exp_name}/${model_type}"
 mkdir -p $result_dir
-for max_decoding_round in ${0.25 0.33 0.5 0.67 0.75}; do
+max_decoding_round_factor=(0.25 0.33 0.5 0.67 0.75)
+for max_decoding_round in "${max_decoding_round_factor[@]}"; do
     # Run each config for `runs` times
     for i in $(seq 1 $runs); do
         echo "Run ${i} cpu threads: ${cpu_threads}, gpu threads: ${gpu_threads}, max decoding round: ${max_decoding_round}"
         # Create the log file name based on the parameters, including the current step length
-        log_file="pipeline-v1_${model}_${sample}_dtw-${dtw}_step-${step}_ct-${cpu_threads}_gt-${gpu_threads}_with_tag_run-${i}.log"
-        log_file_no_audio_tag="pipeline-v1_${model}_${sample}_dtw-${dtw}_step-${step}_ct-${cpu_threads}_gt-${gpu_threads}_no_tag_run-${i}.log"
+        log_file="pipeline-v1_${model}_${sample}_dtw-${dtw}_step-${step}_ct-${cpu_threads}_gt-${gpu_threads}_mdr-${max_decoding_round}_with_tag_run-${i}.log"
+        log_file_no_audio_tag="pipeline-v1_${model}_${sample}_dtw-${dtw}_step-${step}_ct-${cpu_threads}_gt-${gpu_threads}_mdr-${max_decoding_round}_no_tag_run-${i}.log"
  
         # Run the command and redirect the output to the log file
         ./whisper_streaming_cpp_optimized -m models/$model samples/$sample -kc -dtw $dtw -ac -1 -at audio_tag/base_0.5s_avg.csv --step $step -ct $cpu_threads -gt $gpu_threads -mdr $max_decoding_round > $result_dir/$log_file 2>&1
