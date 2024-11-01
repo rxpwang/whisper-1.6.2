@@ -8411,7 +8411,7 @@ gpu_decoder_result whisper_full_with_state_for_whisper_streaming_cpu(
     //     }
     // }
 
-    int n_max = whisper_n_text_ctx(ctx_cpu) * max_decoding_round_factor - 4;
+    int n_max = whisper_n_text_ctx(ctx_cpu) / 2 - 4;
     n_max = (n_max < params.max_round_decode) ? n_max : params.max_round_decode;
     WHISPER_LOG_INFO("%s: max decode round: %d\n", __func__, n_max);
     // this variable record how many decoding round is done on the cpu side
@@ -8940,7 +8940,7 @@ int whisper_full_with_state_for_whisper_streaming_gpu1(
     //     }
     // }
 
-    int n_max = whisper_n_text_ctx(ctx_cpu) * max_decoding_round_factor - 4;
+    int n_max = whisper_n_text_ctx(ctx_cpu)/2 - 4;
     n_max = (n_max < params.max_round_decode) ? n_max : params.max_round_decode;
     WHISPER_LOG_INFO("%s: max decode round: %d\n", __func__, n_max);
     
