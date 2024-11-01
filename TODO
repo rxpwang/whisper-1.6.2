@@ -26,12 +26,12 @@
 | baseline   |  | w/o tag: 7434.0 (+-1058.8) ms, |
 
 
-### M2 Pro evaluation (using 7 P cores and 19 GPU cores)
-#### Major result
+### M2 Pro evaluation
+#### Major result (using 7 P cores and 19 GPU cores)
 | system | whisper-base | whisper-medium |
 | ------ | --------------| ---|
-| ours (pipeline-v1) |      | w/ tag: 1262.8 (+-145.7) ms, w/o tag: 2654.7 (+-99.3) ms | 
-| serialized         |      | w/ tag: 1362.6 (+-144.3) ms, w/o tag: 2766.0 (+-57.0) ms |
+| ours (pipeline-v1) | w/ tag: 190.5 (+-47.5) ms, w/o tag: 217.4 (+-34.3) ms | w/ tag: 1262.8 (+-145.7) ms, w/o tag: 2654.7 (+-99.3) ms | 
+| serialized         | w/ tag: 175.8 (+-32.4) ms, w/o tag: 389.2 (+-73.2) ms | w/ tag: 1362.6 (+-144.3) ms, w/o tag: 2766.0 (+-57.0) ms |
 | baseline           |      | w/ tag: 3079.3 (+-260.7) ms, w/o tag: 3396.1 (+-30.9) ms |
 
 
