@@ -32,13 +32,24 @@
 #### Grid search on CPU / GPU function CPU thread counts
 Using 10 cores, part of them is E cores
 
+#### Medium
+
 | Ours | w/ audio tag | w/o audio tag |
 | ------------ | ------------ | ------------- |
-| CPU:9, GPU:1 | - | - |
-| CPU:8, GPU:2 | - | - |
+| CPU:9, GPU:1 | 1457.4 (+-73.9) ms | 3362.3 (+-67.2) ms |
+| CPU:8, GPU:2 | 1424.7 (+-79.0) ms | 2639.1 (+-83.9) ms |
 | CPU:7, GPU:3 | 1290.2 (+-150.7) ms | 2575.7 (+-123.2) ms |
 | CPU:6, GPU:4 | 1288.7 (+-146.7) ms  | 2502.8 (+-200.1) ms |
 | CPU:5, GPU:5 | 1242.0 (+-129.6) ms  | 2595.4 (+-82.6) ms |
+
+#### Base
+| Ours | w/ audio tag | w/o audio tag |
+| ------------ | ------------ | ------------- |
+| CPU:9, GPU:1 | 310.7 (+-25.2) ms | 266.3 (+-28.5) ms |
+| CPU:8, GPU:2 | 239.5 (+-41.1) ms | 193.9 (+-21.5) ms |
+| CPU:7, GPU:3 | 208.0 (+-29.0) ms | 187.5 (+-20.5) ms |
+| CPU:6, GPU:4 | 213.7 (+-66.1) ms | 167.2 (+-37.7) ms |
+| CPU:5, GPU:5 | 164.4 (+-31.2) ms | 149.7 (+-23.6) ms |
 
 
 ### M2 Ultra evaluation

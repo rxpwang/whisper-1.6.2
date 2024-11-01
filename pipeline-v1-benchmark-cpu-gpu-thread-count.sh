@@ -1,9 +1,10 @@
 #!/bin/bash
 
 # Parameters from your command
-model="ggml-medium.bin"
+model_type="base"
+model="ggml-${model_type}.bin"
 sample="bernie4min.wav"
-dtw="medium"
+dtw=${model_type}
 
 # Get the number of all CPU cores on macOS, use all but 2 cores
 total_threads=$(($(sysctl -n hw.physicalcpu)-2))
@@ -19,7 +20,7 @@ max_decoder=5
 base_directory="benchmarking_results"
 exp_name="thread_count_search"
 # CPU can use at least `max_decoder` threads
-result_dir="${base_directory}/${exp_name}"
+result_dir="${base_directory}/${exp_name}/${model_type}"
 mkdir -p $result_dir
 for cpu_threads in $(seq $max_decoder $(($total_threads-1))); do
     # Run each config for `runs` times
@@ -31,7 +32,7 @@ for cpu_threads in $(seq $max_decoder $(($total_threads-1))); do
         log_file_no_audio_tag="pipeline-v1_${model}_${sample}_dtw-${dtw}_step-${step}_ct-${cpu_threads}_gt-${gpu_threads}_run-${i}.log"
         
         # Run the command and redirect the output to the log file
-        ./whisper_streaming_cpp_optimized -m models/$model samples/$sample -kc -dtw $dtw -ac -1 -at audio_tag/medium_0.5s_avg.csv --step $step -ct $cpu_threads -gt $gpu_threads > $result_dir/$log_file 2>&1
+        ./whisper_streaming_cpp_optimized -m models/$model samples/$sample -kc -dtw $dtw -ac -1 -at audio_tag/base_0.5s_avg.csv --step $step -ct $cpu_threads -gt $gpu_threads > $result_dir/$log_file 2>&1
         echo "Output has been logged to ${result_dir}/${log_file}"
         ./whisper_streaming_cpp_optimized -m models/$model samples/$sample -kc -dtw $dtw --step $step -ct $cpu_threads -gt $gpu_threads > $result_dir/$log_file_no_audio_tag 2>&1
         echo "Output has been logged to ${result_dir}/${log_file_no_audio_tag}"
