@@ -16,9 +16,6 @@
 #include <fstream>
 #include <cstring>
 
-int num_cpu_threads = -1;
-int num_gpu_threads = -1;
-
 // command-line parameters
 struct whisper_params {
     int32_t n_threads  = std::min(4, (int32_t) std::thread::hardware_concurrency());
@@ -45,8 +42,6 @@ struct whisper_params {
     bool save_audio    = false; // save audio to wav file
     bool use_gpu       = true;
     bool flash_attn    = false;
-    int  num_cpu_threads = -1;
-    int  num_gpu_threads = -1;
 
     std::string language  = "en";
     std::string model     = "models/ggml-base.en.bin";
@@ -56,6 +51,11 @@ struct whisper_params {
 
     std::vector<std::string> fname_inp = {};
     std::vector<std::string> fname_out = {};
+    
+    // added by our system
+    int  num_cpu_threads = -1;
+    int  num_gpu_threads = -1;
+    float max_decoding_round_factor = 0.5;
 };
 
 void whisper_print_usage(int argc, char ** argv, const whisper_params & params);
@@ -104,6 +104,7 @@ bool whisper_params_parse(int argc, char ** argv, whisper_params & params) {
         else if (arg == "-of"   || arg == "--output-file")     { params.fname_out.emplace_back(argv[++i]); }
         else if (arg == "-gt"   || arg == "--gpu-threads")     { params.num_gpu_threads = std::stoi(argv[++i]); }
         else if (arg == "-ct"   || arg == "--cpu-threads")     { params.num_cpu_threads = std::stoi(argv[++i]); }
+        else if (arg == "-mdr"   || arg == "--max-decode-rounds") { params.max_decoding_round_factor = std::stof(argv[++i]); }
         else if (arg == "-tdrz" || arg == "--tinydiarize")   { params.tinydiarize   = true; }
         else if (arg == "-sa"   || arg == "--save-audio")    { params.save_audio    = true; }
         else if (arg == "-ng"   || arg == "--no-gpu")        { params.use_gpu       = false; }
@@ -483,8 +484,12 @@ int main(int argc, char ** argv) {
         num_gpu_threads = params.num_gpu_threads;
     }
 
+    max_decoding_round_factor = params.max_decoding_round_factor;
+
     fprintf(stderr, "Thread number search: using %d threads for CPU and %d threads for GPU\n",
             num_cpu_threads, num_gpu_threads);
+
+    fprintf(stderr, "Max decoding round %.2f of the reference transcript\n", max_decoding_round_factor);
 
     // init audio
     /* 

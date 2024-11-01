@@ -7891,10 +7891,9 @@ gpu_decoder_result whisper_full_with_state_for_whisper_streaming(
         state->t_sample_us += ggml_time_us() - t_start_sample_us;
     }
 
-    int n_max = whisper_n_text_ctx(ctx)/2 - 4;
-    n_max = reference_transcript_tokens.size() * 1 / 2; // set the max decode round to half of the reference transcript length in first gpu execution
+    int n_max = reference_transcript_tokens.size() * max_decoding_round_factor; // set the max decode round to half of the reference transcript length in first gpu execution
     // n_max = reference_transcript_tokens.size();
-    WHISPER_LOG_INFO("%s: max decode round on GPU is half of the reference transcript length: %d\n", __func__, n_max);
+    WHISPER_LOG_INFO("%s: max decode round on GPU is %.2f of the reference transcript length: %d\n", __func__, max_decoding_round_factor);
     // end of the ctx and state execution for encoding and prompting on GPU
     int record_decode_round = 0;
     // each loop is one decoding round. each round results in one new token in each decoder
@@ -8412,7 +8411,7 @@ gpu_decoder_result whisper_full_with_state_for_whisper_streaming_cpu(
     //     }
     // }
 
-    int n_max = whisper_n_text_ctx(ctx_cpu)/2 - 4;
+    int n_max = whisper_n_text_ctx(ctx_cpu) * max_decoding_round_factor - 4;
     n_max = (n_max < params.max_round_decode) ? n_max : params.max_round_decode;
     WHISPER_LOG_INFO("%s: max decode round: %d\n", __func__, n_max);
     // this variable record how many decoding round is done on the cpu side
@@ -8941,7 +8940,7 @@ int whisper_full_with_state_for_whisper_streaming_gpu1(
     //     }
     // }
 
-    int n_max = whisper_n_text_ctx(ctx_cpu)/2 - 4;
+    int n_max = whisper_n_text_ctx(ctx_cpu) * max_decoding_round_factor - 4;
     n_max = (n_max < params.max_round_decode) ? n_max : params.max_round_decode;
     WHISPER_LOG_INFO("%s: max decode round: %d\n", __func__, n_max);
     
@@ -9580,6 +9579,10 @@ int whisper_full_with_state_for_whisper_streaming_gpu2(
     //state->result_all = state_cpu->result_all;
     return 0;
 }
+
+int num_cpu_threads = -1;
+int num_gpu_threads = -1;
+float max_decoding_round_factor = -1;
 
 int whisper_full_for_whisper_streaming(
                                     struct whisper_context * ctx,
