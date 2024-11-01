@@ -1,5 +1,10 @@
 #!/bin/bash
 
+# if not at the root whisper directory, go one level up
+if [[ "$(pwd)" != *"whisper"* ]]; then
+    cd ..
+fi
+
 # Parameters from your command
 model_type="base"
 model="ggml-${model_type}.bin"
@@ -34,8 +39,15 @@ for cpu_threads in $(seq $max_decoder $(($total_threads-1))); do
         # Run the command and redirect the output to the log file
         ./whisper_streaming_cpp_optimized -m models/$model samples/$sample -kc -dtw $dtw -ac -1 -at audio_tag/base_0.5s_avg.csv --step $step -ct $cpu_threads -gt $gpu_threads > $result_dir/$log_file 2>&1
         echo "Output has been logged to ${result_dir}/${log_file}"
+
+        echo "Waiting for 30 seconds before the next run..."
+        sleep 30
+
         ./whisper_streaming_cpp_optimized -m models/$model samples/$sample -kc -dtw $dtw --step $step -ct $cpu_threads -gt $gpu_threads > $result_dir/$log_file_no_audio_tag 2>&1
         echo "Output has been logged to ${result_dir}/${log_file_no_audio_tag}"
+
+        echo "Waiting for 60 seconds before the next run..."
+        sleep 60
     done
 done
 
