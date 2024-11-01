@@ -24,7 +24,7 @@
 #### Major result
 | system | whisper-base | whisper-medium |
 | ------ | --------------| ---|
-| ours (pipeline-v1) |      | w/ tag: 1360.9 (+-92.6) ms, w/o tag: 2838 (+-164.5) ms | 
+| ours (pipeline-v1) |      | w/ tag: 1262.8 (+-145.7) ms, w/o tag: 2654.7 (+-99.3) ms | 
 | serialized         |      | w/ tag: 1362.6 (+-144.3) ms, w/o tag: 2766.0 (+-57.0) ms |
 | baseline           |      | w/ tag: 3079.3 (+-260.7) ms, w/o tag: 3396.1 (+-30.9) ms |
 
