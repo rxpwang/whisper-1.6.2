@@ -670,7 +670,7 @@ int main(int argc, char ** argv) {
     std::vector<std::tuple<double, double, std::string>> committed;
     size_t num_iterations = 0;
     int prompt_size = 0;
-    gpu_decoder_result ret_from_gpu;
+    decoder_return_struct ret_from_gpu;
     int begin_flag = 0;
     // record the each token latency
     std::vector<std::tuple<double, double, std::string, double>> latency_record;

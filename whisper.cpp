@@ -7541,7 +7541,7 @@ bool has_subvector_length_2_repeated_3_times(const std::vector<whisper_token_dat
     return false;
 }
 
-gpu_decoder_result whisper_full_with_state_for_whisper_streaming(
+decoder_return_struct whisper_full_with_state_for_whisper_streaming(
         struct whisper_context * ctx,
           struct whisper_state * state,
     struct whisper_full_params   params,
@@ -7549,7 +7549,7 @@ gpu_decoder_result whisper_full_with_state_for_whisper_streaming(
                            int   n_samples,
                    const std::vector<std::tuple<double, double, std::string>> & reference_transcript_tokens,
                   volatile int * pInferenceSignal) {
-    gpu_decoder_result return_result;
+    decoder_return_struct return_result;
     print_token_timestamp_vector(reference_transcript_tokens);
 
     auto & result_all = state->result_all;
@@ -8306,17 +8306,17 @@ gpu_decoder_result whisper_full_with_state_for_whisper_streaming(
     return return_result;
 }
 
-gpu_decoder_result whisper_full_with_state_for_whisper_streaming_cpu(
+decoder_return_struct whisper_full_with_state_for_whisper_streaming_cpu(
         struct whisper_context * ctx_cpu,
           struct whisper_state * state_cpu,
           struct whisper_full_params   params,
                    const float * samples,
                            int   n_samples,
                    const std::vector<std::tuple<double, double, std::string>> & reference_transcript_tokens,
-                gpu_decoder_result ret_from_gpu,
+                decoder_return_struct ret_from_gpu,
                   volatile int * pInferenceSignal) {
     // start of the ctx_cpu and state_cpu execution for decoding on CPU
-    gpu_decoder_result return_result;
+    decoder_return_struct return_result;
     int prompt_size = ret_from_gpu.prompt_size;
     int best_decoder_id = 0;
     int n_decoders_cur = ret_from_gpu.n_decoders_cur;
@@ -8841,7 +8841,7 @@ int whisper_full_with_state_for_whisper_streaming_gpu1(
                    const float * samples,
                            int   n_samples,
                    const std::vector<std::tuple<double, double, std::string>> & reference_transcript_tokens,
-                gpu_decoder_result ret_from_gpu,
+                decoder_return_struct ret_from_gpu,
                   volatile int * pInferenceSignal) {
     // for gpu decoding and dtw. after finishing the workload, it will send the signal to the cpu session
     // start of the ctx_cpu and state_cpu execution for decoding on CPU
@@ -9592,7 +9592,7 @@ int whisper_full_for_whisper_streaming(
 const std::vector<std::tuple<double, double, std::string>> & reference_transcript_tokens,
                                     struct whisper_context * ctx_cpu,
                                                     size_t   num_iterations,
-                                        gpu_decoder_result & ret_from_gpu) {
+                                        decoder_return_struct & ret_from_gpu) {
     // for gpu decoding and cpu decoding sync up. when cpu decoding is finish, gpu deocoding will be notified by this signal.
     // std::atomic<int> inferenceSignal(0);
     volatile int inferenceSignal = 0;
@@ -9612,17 +9612,17 @@ const std::vector<std::tuple<double, double, std::string>> & reference_transcrip
         return 0;
     } else {
         inferenceSignal = 0;
-        gpu_decoder_result last_ret_from_gpu = ret_from_gpu;
-        gpu_decoder_result ret_from_cpu;
+        decoder_return_struct last_ret_from_gpu = ret_from_gpu;
+        decoder_return_struct ret_from_cpu;
         // not the first iteration, the encoding and decoding goes together
         // the gpu decoding part
         params.n_threads = num_gpu_threads;
-        std::future<gpu_decoder_result> gpu_future = std::async(std::launch::async, whisper_full_with_state_for_whisper_streaming,
+        std::future<decoder_return_struct> gpu_future = std::async(std::launch::async, whisper_full_with_state_for_whisper_streaming,
                                                                 ctx, ctx->state, params, samples, n_samples, reference_transcript_tokens, pInferenceSignal);
         
         // the cpu decoding part
         params.n_threads = num_cpu_threads;
-        std::future<gpu_decoder_result> cpu_future = std::async(std::launch::async, whisper_full_with_state_for_whisper_streaming_cpu,
+        std::future<decoder_return_struct> cpu_future = std::async(std::launch::async, whisper_full_with_state_for_whisper_streaming_cpu,
                                                  ctx_cpu, ctx_cpu->state, params, samples, n_samples, reference_transcript_tokens, last_ret_from_gpu, pInferenceSignal);
 
         // first concurrent sessions: gpu for new encoding, prompting and 1 round decoding; cpu for previous decoding
@@ -9682,12 +9682,12 @@ const std::vector<std::tuple<double, double, std::string>> & reference_transcrip
         
         // the cpu decoding part
         params.n_threads = num_cpu_threads;
-        std::future<gpu_decoder_result> cpu_future1 = std::async(std::launch::async, whisper_full_with_state_for_whisper_streaming_cpu,
+        std::future<decoder_return_struct> cpu_future1 = std::async(std::launch::async, whisper_full_with_state_for_whisper_streaming_cpu,
                                                  ctx_cpu, ctx_cpu->state, params, samples, n_samples, reference_transcript_tokens, ret_from_gpu, pInferenceSignal);
 
         // first concurrent sessions: gpu for new encoding, prompting and 1 round decoding; cpu for previous decoding
         int gpu_return_value;
-        gpu_decoder_result cur_return_from_cpu;
+        decoder_return_struct cur_return_from_cpu;
         gpu_return_value = gpu_future1.get();
         cur_return_from_cpu = cpu_future1.get();
         ret_from_gpu = cur_return_from_cpu;
