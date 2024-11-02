@@ -28,6 +28,15 @@
 
 ### M3 Pro evaluation
 5P + 6E + 14 GPU, 16GB memory
+
+#### Major results
+#### Major result (using 7 P cores and 19 GPU cores)
+| system | whisper-base | whisper-medium |
+| ------ | --------------| ---|
+| ours (pipeline-v1) |      | w/ tag: 1840.6 (+-128.6) ms, w/o tag: 3092.3 (+-97.9) ms | 
+| serialized         |      | w/ tag: 1661.0 (+-175.9) ms, w/o tag: 3487.5 (+-410.6) ms
+| baseline           |      |      |
+
 #### Grid search on CPU / GPU function CPU thread counts
 Using 10 cores in total
 ##### Base
