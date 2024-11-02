@@ -101,7 +101,7 @@ CPU: 5 threads, GPU: 5 threads
 | 2/3        | 231.6 (+-36.3) ms | 264.8 (+-16.6) ms |
 | 3/4        | 228.6 (+-16.8) ms | 329.2 (+-45.5) ms |
 
-##### Medium
+##### Medium (need update)
 | ratio of reference length | w/ audio tag | w/o audio tag |
 | ---------- | ---------------- | ---------------- |
 | 1/4        | 1703.6 (+-248.2) ms | 2369.1 (+-133.4) ms |

@@ -16,6 +16,7 @@ elif [ $# == 2 ]; then
     repetitions=$2
 fi
 
+model="ggml-${model_type}.bin"
 sample="bernie4min.wav"
 dtw=${model_type}
 
