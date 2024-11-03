@@ -27,14 +27,14 @@
 
 
 ### M3 Pro evaluation
-5P + 6E + 14 GPU, 16GB memory
+5P + 6E + 14 GPU, 18GB memory
 
 #### Major results
-#### Major result (using 7 P cores and 19 GPU cores)
+#### Major result
 | system | whisper-base | whisper-medium |
 | ------ | --------------| ---|
-| ours (pipeline-v1) |      | w/ tag: 1840.6 (+-128.6) ms, w/o tag: 3092.3 (+-97.9) ms | 
-| serialized         |      | w/ tag: 1661.0 (+-175.9) ms, w/o tag: 3487.5 (+-410.6) ms
+| ours (pipeline-v1), 7 CPU threads, 3 GPU threads | w/tag: 74.0 (+-48.5) ms, w/o tag: 162.0 (+-28.7) ms | w/ tag: 1447.9 (+-39.6) ms, w/o tag: 3130.9 (+-54.2) ms | 
+| serialized (5 threads)    |      | w/ tag: 1661.0 (+-175.9) ms, w/o tag: 3487.5 (+-410.6) ms
 | baseline           |      |      |
 
 #### Grid search on CPU / GPU function CPU thread counts
@@ -51,11 +51,11 @@ Using 10 cores in total
 ##### Medium
 | Ours | w/ audio tag | w/o audio tag |
 | ------------ | ------------ | ------------- |
-| CPU:9, GPU:1 | 2232.4 (+-104.1) ms | 3368.9 (+-44.4) ms |
-| CPU:8, GPU:2 | 1904.9 (+-107.8) ms | 3030.4 (+-115.8) ms |
-| CPU:7, GPU:3 | 1877.5 (+-204.3) ms | 3528.9 (+-815.1) ms |
-| CPU:6, GPU:4 | 1862.3 (+-105.2) ms | 3064.2 (+-78.8) ms |
-| CPU:5, GPU:5 | 1840.6 (+-128.6) ms | 3092.3 (+-97.9) ms |
+| CPU:9, GPU:1 | 1634.7 (+-190.5) ms | 3116.3 (+-25.3) ms |
+| CPU:8, GPU:2 | 1457.2 (+-93.6) ms | 3170.3 (+-185.0) ms |
+| CPU:7, GPU:3 | 1447.9 (+-39.3) ms | 3130.9 (+-54.2) ms |
+| CPU:6, GPU:4 | 1477.9 (+-108.8) ms | 2975.2 (+-114.6) ms |
+| CPU:5, GPU:5 | 1791.4 (+-223.6) ms | 3439.1 (+-227.5) ms |
 
 ### M2 Pro evaluation
 8P + 4E + 19 GPU, 32GB memory

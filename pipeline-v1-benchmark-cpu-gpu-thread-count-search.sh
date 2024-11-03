@@ -42,7 +42,7 @@ for cpu_threads in $(seq $max_decoder $(($total_threads-1))); do
         echo "Run ${i} cpu threads: ${cpu_threads}, gpu threads: ${gpu_threads}"
         # Create the log file name based on the parameters, including the current step length
         log_file="pipeline-v1_${model_type}_${sample}_step-${step}_ct-${cpu_threads}_gt-${gpu_threads}_with_tag_run-${i}.log"
-        log_file_no_audio_tag="pipeline-v1_${model}_${sample}_step-${step}_ct-${cpu_threads}_gt-${gpu_threads}_no_tag_run-${i}.log"
+        log_file_no_audio_tag="pipeline-v1_${model_type}_${sample}_step-${step}_ct-${cpu_threads}_gt-${gpu_threads}_no_tag_run-${i}.log"
         
         # Run the command and redirect the output to the log file
         ./whisper_streaming_cpp_optimized -m models/$model samples/$sample -kc -dtw $dtw -ac -1 -at audio_tag/${model_type}_0.5s_avg.csv --step $step -ct $cpu_threads -gt $gpu_threads > $result_dir/$log_file 2>&1
