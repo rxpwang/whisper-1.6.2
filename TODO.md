@@ -70,6 +70,18 @@ Using 10 cores in total
 | CPU:6, GPU:4 | 1477.9 (+-108.8) ms | 2975.2 (+-114.6) ms |
 | CPU:5, GPU:5 | 1791.4 (+-223.6) ms | 3439.1 (+-227.5) ms |
 
+#### Search on GPU decoding round
+CPU: 7 threads, GPU: 3 threads
+
+##### Medium
+| ratio of reference length | w/ audio tag | w/o audio tag |
+| ---------- | ---------------- | ---------------- |
+| 1/4        | 1534.3 (+-200.8) ms | 2827.7 (+-171.0) ms |
+| 1/3        | 1512.5 (+-186.1) ms | 3011.7 (+-206.6) ms |
+| 1/2        | 1455.2 (+-77.9) ms | 3025.0 (+-134.6) ms |
+| 2/3        | 1608.3 (+-143.8) ms | 3095.9 (+-166.7) ms |
+| 3/4        | 1806.9 (+-233.1) ms | 3442.4 (+-114.4) ms |
+
 ### M2 Pro evaluation
 8P + 4E + 19 GPU, 32GB memory
 #### Major result
