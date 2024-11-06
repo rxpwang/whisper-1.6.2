@@ -13,8 +13,21 @@
 
 ### Benchmarking
 - M2 Pro
-  - run serialized pipeline with base model (w/ audio_tag and w/o audio_tag)
-  - search decoding length (1, 1/4, 1/3/, 1/2, 3/4)
+  - [x] run serialized pipeline with base model (w/ audio_tag and w/o audio_tag)
+  - [x] search decoding length (1/4, 1/3/, 1/2, 2/3, 3/4)
+
+- M3 Pro
+  - [ ] search decoding length (1/4, 1/3/, 1/2, 2/3, 3/4)
+
+- Dataset
+  - [ ] 5 minute audio datasets on TED
+
+### Paper Writing
+- Introduction
+  - [ ] Figures
+    - [ ] Batch
+    - [ ] Serialized pipeline
+    - [ ] WhisperFlow
 
 #### Benchmark on all data
 
@@ -59,10 +72,10 @@ Using 10 cores in total
 
 ### M2 Pro evaluation
 8P + 4E + 19 GPU, 32GB memory
-#### Major result (using 7 P cores and 19 GPU cores)
+#### Major result
 | system | whisper-base | whisper-medium |
 | ------ | --------------| ---|
-| ours (pipeline-v1) | w/ tag: 190.5 (+-47.5) ms, w/o tag: 217.4 (+-34.3) ms | w/ tag: 1262.8 (+-145.7) ms, w/o tag: 2654.7 (+-99.3) ms | 
+| ours (pipeline-v1) | w/ tag: 190.5 (+-47.5) ms, w/o tag: 217.4 (+-34.3) ms | w/ tag: 1170.4 (+-64.6) ms, w/o tag: 2389.4 (+-178.6) ms | 
 | serialized         | w/ tag: 175.8 (+-32.4) ms, w/o tag: 389.2 (+-73.2) ms | w/ tag: 1362.6 (+-144.3) ms, w/o tag: 2766.0 (+-57.0) ms |
 | baseline           |      | w/ tag: 3079.3 (+-260.7) ms, w/o tag: 3396.1 (+-30.9) ms |
 
