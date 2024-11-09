@@ -52,7 +52,7 @@ log_file_no_audio_tag="${result_dir}/pipeline-v1_${model_type}_${dataset_name}_s
 
 # clear the log file from previous run
 rm -f $log_file
-rm -f > $log_file_no_audio_tag
+rm -f $log_file_no_audio_tag
 
 total_samples=$(ls $data_dir | grep "wav" | wc -l)
 
