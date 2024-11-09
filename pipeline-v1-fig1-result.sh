@@ -64,11 +64,10 @@ for sample in $(ls $data_dir | grep "wav"); do
     # Run the command and redirect the output to the log file
     echo $sample >> $log_file
     ./whisper_streaming_cpp_optimized -m models/$model $data_dir/$sample -kc -dtw $dtw -ac -1 -at audio_tag/${model_type}_0.5s_avg.csv --step $step -ct $cpu_threads -gt $gpu_threads -mdr $mdr >> $log_file 2>&1
-    echo "Output has been logged to $log_file"
     
-    echo $sample >> $log_file
-    ./whisper_streaming_cpp_optimized -m models/$model $data_dir/$sample -kc -dtw $dtw -ac -1 --step $step -ct $cpu_threads -gt $gpu_threads -mdr $mdr >> $log_file_no_audio_tag 2>&1
-    echo "Output has been logged to $log_file_no_audio_tag"
+    # echo $sample >> $log_file
+    # ./whisper_streaming_cpp_optimized -m models/$model $data_dir/$sample -kc -dtw $dtw -ac -1 --step $step -ct $cpu_threads -gt $gpu_threads -mdr $mdr >> $log_file_no_audio_tag 2>&1
+    # echo "Output has been logged to $log_file_no_audio_tag"
 
     i=$((i+1))
 done
