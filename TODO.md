@@ -160,3 +160,15 @@ Using 10 cores, part of them is E cores
 | CPU:7, GPU:3 | 949.3 (+-97.6) ms | 1654.2 (+-9.6) ms |
 | CPU:6, GPU:4 | 807.2 (+-69.3) ms  | 1658.3 (+-71.8) ms |
 | CPU:5, GPU:5 | 920.2 (+-198.0) ms  | 1604.9 (+-38.2) ms |
+
+### Result Section in Paper
+#### First figure
+- Sub plots based on model types
+- X-axis: devices, Y-axis: latency
+- Y-axis value: best latency
+Only use ours best and baseline. To show that our system delievers the lowest latency
+
+#### Second figure
+- Sub plots based on models
+- X-axis: WER, Y-axis: latency
+Use three devices. To show that our system maintains low WER while reducing latency
