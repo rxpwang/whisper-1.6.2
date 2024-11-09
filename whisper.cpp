@@ -5289,8 +5289,7 @@ static std::vector<whisper_token_data> whisper_sample_token_topk(
     for (int i = 0; i < k; ++i) {
         const auto id = dist(decoder.rng);
         //const auto id = logits_id[i].second; // make the sampling deterministic
-        //printf("XXX %d %d %f %f %f %f\n", id, tid, probs[id], logprobs[id], pt, ptsum);
-        WHISPER_LOG_DEBUG("%s: XXX %d %d %f %f %f %f\n", __func__, id, tid, probs[id], logprobs[id], pt, ptsum);
+        // WHISPER_LOG_DEBUG("%s: XXX %d %d %f %f %f %f\n", __func__, id, tid, probs[id], logprobs[id], pt, ptsum);
         result.push_back({ id, tid, probs[id], logprobs[id], pt, ptsum, -1, -1, -1, 0.0f, });
 
         if (result[i].id >= vocab.token_beg) {
@@ -7484,13 +7483,13 @@ void _bookkeep_optimized_beam_search(
             WHISPER_LOG_DEBUG("%s: Searching for the matched reference token...\n", __func__);
             int tmp_i;
             for (tmp_i = 0; tmp_i < reference_transcript_tokens.size(); tmp_i++) {
-                WHISPER_LOG_DEBUG("%s: Current new token: %s\n", __func__, cur_token_string.c_str());
-                WHISPER_LOG_DEBUG("%s: Current reference: %s\n", __func__, std::get<2>(reference_transcript_tokens[tmp_i]).c_str());
+                // WHISPER_LOG_DEBUG("%s: Current new token: %s\n", __func__, cur_token_string.c_str());
+                // WHISPER_LOG_DEBUG("%s: Current reference: %s\n", __func__, std::get<2>(reference_transcript_tokens[tmp_i]).c_str());
                 if (cur_token_string == std::get<2>(reference_transcript_tokens[tmp_i])) {
                     cur_token_idx_in_reference_prompt = tmp_i;
-                    WHISPER_LOG_DEBUG("%s: We get reference token id matched: %d\n", __func__, tmp_i);
-                    WHISPER_LOG_DEBUG("%s: Current new token: %s\n", __func__, cur_token_string.c_str());
-                    WHISPER_LOG_DEBUG("%s: Current reference: %s\n", __func__, std::get<2>(reference_transcript_tokens[cur_token_idx_in_reference_prompt]).c_str());
+                    // WHISPER_LOG_DEBUG("%s: We get reference token id matched: %d\n", __func__, tmp_i);
+                    // WHISPER_LOG_DEBUG("%s: Current new token: %s\n", __func__, cur_token_string.c_str());
+                    // WHISPER_LOG_DEBUG("%s: Current reference: %s\n", __func__, std::get<2>(reference_transcript_tokens[cur_token_idx_in_reference_prompt]).c_str());
                     cur_token_idx_in_reference_prompt += 1;
                     break;
                 }
@@ -7503,8 +7502,8 @@ void _bookkeep_optimized_beam_search(
         }
         else {
             std::string cur_reference_token_string = std::get<2>(reference_transcript_tokens[cur_token_idx_in_reference_prompt]);
-            WHISPER_LOG_DEBUG("%s: Current new token: %s\n", __func__, cur_token_string.c_str());
-            WHISPER_LOG_DEBUG("%s: Current reference: %s\n", __func__, cur_reference_token_string.c_str());
+            // WHISPER_LOG_DEBUG("%s: Current new token: %s\n", __func__, cur_token_string.c_str());
+            // WHISPER_LOG_DEBUG("%s: Current reference: %s\n", __func__, cur_reference_token_string.c_str());
             if (cur_token_string != cur_reference_token_string) {
                 WHISPER_LOG_DEBUG("%s: we reach the diverge point of the reference, fall back to beam search with beam size 5\n", __func__);
                 n_decoders_fallback_flag = 1;
@@ -7835,11 +7834,13 @@ decoder_return_struct whisper_full_with_state_for_whisper_streaming(
     prompt.insert(prompt.end(), prompt_init.begin(), prompt_init.end());
 
     // print the prompt
+    /*
     WHISPER_LOG_INFO("\n\n");
     for (int i = 0; i < (int) prompt.size(); i++) {
         WHISPER_LOG_INFO("%s: prompt[%d] = %s\n", __func__, i, ctx->vocab.id_to_token.at(prompt[i]).c_str());
     }
     WHISPER_LOG_INFO("\n\n");
+    */
 
     whisper_kv_cache_clear(state->kv_self);
 
@@ -7945,7 +7946,6 @@ decoder_return_struct whisper_full_with_state_for_whisper_streaming(
                         case whisper_sampling_strategy::WHISPER_SAMPLING_BEAM_SEARCH:
                         case whisper_sampling_strategy::WHIPSER_SAMPLING_OPTIMIZED_BEAM_SEARCH:
                             {
-                                //const auto tokens_new = whisper_sample_token_topk(*ctx, decoder, params.beam_search.beam_size);
                                 const auto tokens_new = whisper_sample_token_topk(*ctx, decoder, params.beam_search.beam_size);
                                 for (const auto & token : tokens_new) {
                                     beam_candidates_per_decoder[j].push_back({ j, decoder.seek_delta, decoder.has_ts, decoder.sequence, decoder.grammar, });
@@ -8064,11 +8064,12 @@ decoder_return_struct whisper_full_with_state_for_whisper_streaming(
                 decoder.sequence   = cur.sequence;
                 decoder.grammar    = cur.grammar;
 
-                //whisper_kv_cache_seq_cp(state->kv_self, cur.decoder_idx, WHISPER_MAX_DECODERS + j, -1, -1);
                 whisper_kv_cache_seq_cp(state->kv_self, cur.decoder_idx, WHISPER_MAX_DECODERS + j, -1, -1);
 
+                /*
                 WHISPER_LOG_DEBUG("%s: beam search: decoder %d: from decoder %d: token = %10s, plog = %8.5f, sum_logprobs = %8.5f\n",
                         __func__, j, cur.decoder_idx, ctx->vocab.id_to_token.at(decoder.sequence.tokens.back().id).c_str(), decoder.sequence.tokens.back().plog, decoder.sequence.sum_logprobs_all);
+                */
             }
 
             for (int j = 0; j < n_decoders_cur; ++j) {
@@ -8129,8 +8130,10 @@ decoder_return_struct whisper_full_with_state_for_whisper_streaming(
 
                 {
                     const auto tt = token.pt > 0.10 ? ctx->vocab.id_to_token.at(token.tid) : "[?]";
+                    /*
                     WHISPER_LOG_DEBUG("%s: id = %3d, decoder = %d, token = %6d, p = %6.3f, ts = %10s, %6.3f, result_len = %4d '%s'\n",
                             __func__, i, j, token.id, token.p, tt.c_str(), token.pt, result_len, ctx->vocab.id_to_token.at(token.id).c_str());
+                    */
                 }
 
                 // end of segment
@@ -8588,8 +8591,10 @@ decoder_return_struct whisper_full_with_state_for_whisper_streaming_cpu(
                 //whisper_kv_cache_seq_cp(state->kv_self, cur.decoder_idx, WHISPER_MAX_DECODERS + j, -1, -1);
                 whisper_kv_cache_seq_cp(state_cpu->kv_self, cur.decoder_idx, WHISPER_MAX_DECODERS + j, -1, -1);
 
+                /*
                 WHISPER_LOG_DEBUG("%s: beam search: decoder %d: from decoder %d: token = %10s, plog = %8.5f, sum_logprobs = %8.5f\n",
                         __func__, j, cur.decoder_idx, ctx_cpu->vocab.id_to_token.at(decoder.sequence.tokens.back().id).c_str(), decoder.sequence.tokens.back().plog, decoder.sequence.sum_logprobs_all);
+                */
             }
 
             for (int j = 0; j < n_decoders_cur; ++j) {
@@ -8650,8 +8655,10 @@ decoder_return_struct whisper_full_with_state_for_whisper_streaming_cpu(
 
                 {
                     const auto tt = token.pt > 0.10 ? ctx_cpu->vocab.id_to_token.at(token.tid) : "[?]";
+                    /*
                     WHISPER_LOG_DEBUG("%s: id = %3d, decoder = %d, token = %6d, p = %6.3f, ts = %10s, %6.3f, result_len = %4d '%s'\n",
                             __func__, i, j, token.id, token.p, tt.c_str(), token.pt, result_len, ctx_cpu->vocab.id_to_token.at(token.id).c_str());
+                    */
                 }
 
                 // end of segment
@@ -9185,8 +9192,10 @@ int whisper_full_with_state_for_whisper_streaming_gpu1(
 
                 {
                     const auto tt = token.pt > 0.10 ? ctx_cpu->vocab.id_to_token.at(token.tid) : "[?]";
+                    /*
                     WHISPER_LOG_DEBUG("%s: id = %3d, decoder = %d, token = %6d, p = %6.3f, ts = %10s, %6.3f, result_len = %4d '%s'\n",
                             __func__, i, j, token.id, token.p, tt.c_str(), token.pt, result_len, ctx_cpu->vocab.id_to_token.at(token.id).c_str());
+                    */
                 }
 
                 // end of segment
