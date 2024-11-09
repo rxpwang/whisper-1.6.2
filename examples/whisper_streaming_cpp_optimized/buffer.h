@@ -79,7 +79,7 @@ class HypothesisBuffer {
         }
 
         void insert(std::vector<std::tuple<double, double, std::string>>& new_, double offset) {
-            std::cout << "----- buffer.insert begin -----" << std::endl;
+            // std::cout << "----- buffer.insert begin -----" << std::endl;
             // remove special tokens in the new tokens
             new_.erase(std::remove_if(new_.begin(), new_.end(), [](const std::tuple<double, double, std::string>& t) {
                 const std::string& s = std::get<2>(t);  // Access the string part of the tuple
@@ -181,11 +181,11 @@ class HypothesisBuffer {
                 }
 
             }
-            std::cout << "----- buffer.insert end -----" << std::endl;
+            // std::cout << "----- buffer.insert end -----" << std::endl;
         }
 
         std::vector<std::tuple<double, double, std::string>> flush() {
-            std::cout << "----- buffer.flush begin -----" << std::endl;
+            // std::cout << "----- buffer.flush begin -----" << std::endl;
             std::vector<std::tuple<double, double, std::string>> commit = {};
             double na, nb;
             std::string nt; // hold new token
@@ -212,21 +212,21 @@ class HypothesisBuffer {
             self_buffer = self_new;
             self_new.clear();
             self_committed_in_buffer.insert(self_committed_in_buffer.end(), commit.begin(), commit.end());
-            std::cout << "----- buffer.flush end -----" << std::endl;
+            // std::cout << "----- buffer.flush end -----" << std::endl;
             return commit;
         }
 
         void pop_committed(double t) {
-            std::cout << "----- buffer.pre_committed begin -----" << std::endl;
+            // std::cout << "----- buffer.pre_committed begin -----" << std::endl;
             while (!self_committed_in_buffer.empty() &&
                 std::get<1>(self_committed_in_buffer[0]) <= t) {
                 self_committed_in_buffer.erase(self_committed_in_buffer.begin());
             }
-            std::cout << "----- buffer.pre_committed end -----" << std::endl;
+            // std::cout << "----- buffer.pre_committed end -----" << std::endl;
         }
 
         std::vector<std::tuple<double, double, std::string>> complete() {
-            std::cout << "----- buffer.complete begin and end -----" << std::endl;
+            // std::cout << "----- buffer.complete begin and end -----" << std::endl;
             return self_buffer;
         }
 
