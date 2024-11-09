@@ -47,16 +47,20 @@ result_dir="${result_base_directory}/${exp_name}/${model_type}"
 data_dir="${data_base_directory}/${dataset_name}"
 mkdir -p $result_dir
 # Loop over each step length
-i=0
-log_file="${result_dir}/pipeline-v1_main_${model_type}_${dataset_name}_step-${step}_ct-${cpu_threads}_gt-${gpu_threads}_mdr-${mdr}_with_tag.log"
+log_file="${result_dir}/pipeline-v1_${model_type}_${dataset_name}_step-${step}_ct-${cpu_threads}_gt-${gpu_threads}_mdr-${mdr}_with_tag.log"
 log_file_no_audio_tag="${result_dir}/pipeline-v1_${model_type}_${dataset_name}_step-${step}_ct-${cpu_threads}_gt-${gpu_threads}_mdr-${mdr}_no_tag.log"
 
+# clear the log file from previous run
+rm -f $log_file
+rm -f > $log_file_no_audio_tag
+
+total_samples=$(ls $data_dir | grep "wav" | wc -l)
+
+i=1
 for sample in $(ls $data_dir | grep "wav"); do
     # Create the log file name based on the parameters, including the current step length
-    if (( i % 10 == 0 )); then
-        echo "Run ${i}"
-    fi
- 
+    progress=$((i*100/total_samples))
+    printf "\rProgress: [%-50s] %d%%" $(head -c $(( progress / 2 )) < /dev/zero | tr '\0' '#') $progress
     # Run the command and redirect the output to the log file
     echo $sample >> $log_file
     ./whisper_streaming_cpp_optimized -m models/$model $data_dir/$sample -kc -dtw $dtw -ac -1 -at audio_tag/${model_type}_0.5s_avg.csv --step $step -ct $cpu_threads -gt $gpu_threads -mdr $mdr >> $log_file 2>&1
@@ -65,6 +69,8 @@ for sample in $(ls $data_dir | grep "wav"); do
     echo $sample >> $log_file
     ./whisper_streaming_cpp_optimized -m models/$model $data_dir/$sample -kc -dtw $dtw -ac -1 --step $step -ct $cpu_threads -gt $gpu_threads -mdr $mdr >> $log_file_no_audio_tag 2>&1
     echo "Output has been logged to $log_file_no_audio_tag"
+
+    i=$((i+1))
 done
 
 if [[ "$OSTYPE" == "darwin"* ]]; then
