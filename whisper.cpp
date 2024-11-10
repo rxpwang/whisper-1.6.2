@@ -5662,7 +5662,7 @@ int whisper_full_with_state(
                 prompt.insert(prompt.end(), prompt_init.begin(), prompt_init.end());
 
                 // print the prompt
-                //WHISPER_LOG_DEBUG("\n\n");
+                /*
                 WHISPER_LOG_INFO("\n\n");
                 for (int i = 0; i < (int) prompt.size(); i++) {
                     //WHISPER_LOG_DEBUG("%s: prompt[%d] = %s\n", __func__, i, ctx->vocab.id_to_token.at(prompt[i]).c_str());
@@ -5670,6 +5670,7 @@ int whisper_full_with_state(
                 }
                 //WHISPER_LOG_DEBUG("\n\n");
                 WHISPER_LOG_INFO("\n\n");
+                */
 
                 whisper_kv_cache_clear(state->kv_self);
 
@@ -5824,8 +5825,10 @@ int whisper_full_with_state(
 
                         whisper_kv_cache_seq_cp(state->kv_self, cur.decoder_idx, WHISPER_MAX_DECODERS + j, -1, -1);
 
+                        /*
                         WHISPER_LOG_DEBUG("%s: beam search: decoder %d: from decoder %d: token = %10s, plog = %8.5f, sum_logprobs = %8.5f\n",
                                 __func__, j, cur.decoder_idx, ctx->vocab.id_to_token.at(decoder.sequence.tokens.back().id).c_str(), decoder.sequence.tokens.back().plog, decoder.sequence.sum_logprobs_all);
+                        */
                     }
 
                     for (int j = 0; j < n_decoders_cur; ++j) {
@@ -5882,8 +5885,10 @@ int whisper_full_with_state(
 #ifdef WHISPER_DEBUG
                         {
                             const auto tt = token.pt > 0.10 ? ctx->vocab.id_to_token.at(token.tid) : "[?]";
+                            /*
                             WHISPER_LOG_DEBUG("%s: id = %3d, decoder = %d, token = %6d, p = %6.3f, ts = %10s, %6.3f, result_len = %4d '%s'\n",
                                     __func__, i, j, token.id, token.p, tt.c_str(), token.pt, result_len, ctx->vocab.id_to_token.at(token.id).c_str());
+                            */
                         }
 #endif
 
