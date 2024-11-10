@@ -31,10 +31,17 @@ if [ $gpu_threads -gt $cpu_threads ]; then
     gpu_threads=$tmp
 fi
 
-echo "CPU threads: ${cpu_threads}, GPU threads: ${gpu_threads}"
-
 mdr=0.5
-echo "Max decoding round: ${mdr} of reference transcript length"
+system_used="baseline"
+
+echo "Running ${system_used}"
+
+if [ $system_used == "whisperflow" ]; then
+    echo "CPU threads: ${cpu_threads}, GPU threads: ${gpu_threads}"
+    echo "Max decoding round: ${mdr} of reference transcript length"
+elif [ $system_used == "baseline" ]; then
+    echo "Threads: ${cpu_threads}"
+fi
 
 # Array of different step lengths to loop through
 step=100
@@ -42,17 +49,18 @@ step=100
 result_base_directory="benchmarking_results"
 data_base_directory="benchmarking_data"
 exp_name="fig1"
+
 # CPU can use at least `max_decoder` threads
 result_dir="${result_base_directory}/${exp_name}/${model_type}"
 data_dir="${data_base_directory}/${dataset_name}"
 mkdir -p $result_dir
 # Loop over each step length
 log_file="${result_dir}/pipeline-v1_${model_type}_${dataset_name}_step-${step}_ct-${cpu_threads}_gt-${gpu_threads}_mdr-${mdr}_with_tag.log"
-log_file_no_audio_tag="${result_dir}/pipeline-v1_${model_type}_${dataset_name}_step-${step}_ct-${cpu_threads}_gt-${gpu_threads}_mdr-${mdr}_no_tag.log"
+log_file_baseline="${result_dir}/baseline_${model_type}_${dataset_name}_step-${step}_ct-${cpu_threads}_gt-${gpu_threads}_mdr-${mdr}_no_tag.log"
 
 # clear the log file from previous run
 rm -f $log_file
-rm -f $log_file_no_audio_tag
+rm -f $log_file_baseline
 
 total_samples=$(ls $data_dir | grep "wav" | wc -l)
 
@@ -62,12 +70,13 @@ for sample in $(ls $data_dir | grep "wav"); do
     progress=$((i*100/total_samples))
     printf "\rProgress: [%-50s] %d%%" $(head -c $(( progress / 2 )) < /dev/zero | tr '\0' '#') $progress
     # Run the command and redirect the output to the log file
-    echo $sample >> $log_file
-    ./whisper_streaming_cpp_optimized -m models/$model $data_dir/$sample -kc -dtw $dtw -ac -1 -at audio_tag/${model_type}_0.5s_avg.csv --step $step -ct $cpu_threads -gt $gpu_threads -mdr $mdr >> $log_file 2>&1
-    
-    # echo $sample >> $log_file
-    # ./whisper_streaming_cpp_optimized -m models/$model $data_dir/$sample -kc -dtw $dtw -ac -1 --step $step -ct $cpu_threads -gt $gpu_threads -mdr $mdr >> $log_file_no_audio_tag 2>&1
-    # echo "Output has been logged to $log_file_no_audio_tag"
+    if [ $system_used == "whisperflow" ]; then
+        echo $sample >> $log_file
+        ./whisper_streaming_cpp_optimized -m models/$model $data_dir/$sample -kc -dtw $dtw -ac -1 -at audio_tag/${model_type}_0.5s_avg.csv --step $step -ct $cpu_threads -gt $gpu_threads -mdr $mdr >> $log_file 2>&1
+    elif [ $system_used == "baseline" ]; then
+        echo $sample >> $log_file_baseline
+        ./whisper_streaming_cpp -m models/$model $data_dir/$sample -kc -dtw $dtw -ac -1 --step $step -t $cpu_threads>> $log_file_baseline 2>&1
+    fi
 
     i=$((i+1))
 done
