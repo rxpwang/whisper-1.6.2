@@ -75,7 +75,7 @@ for sample in $(ls $data_dir | grep "wav"); do
         ./whisper_streaming_cpp_optimized -m models/$model $data_dir/$sample -kc -dtw $dtw -ac -1 -at audio_tag/${model_type}_0.5s_avg.csv --step $step -ct $cpu_threads -gt $gpu_threads -mdr $mdr >> $log_file 2>&1
     elif [ $system_used == "baseline" ]; then
         echo $sample >> $log_file_baseline
-        ./whisper_streaming_cpp -m models/$model $data_dir/$sample -kc -dtw $dtw -ac -1 --step $step -t $cpu_threads>> $log_file_baseline 2>&1
+        ./whisper_streaming_cpp -m models/$model $data_dir/$sample -kc -dtw $dtw --step $step -t $cpu_threads>> $log_file_baseline 2>&1
     fi
 
     i=$((i+1))
