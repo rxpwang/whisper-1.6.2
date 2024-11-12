@@ -52,7 +52,7 @@ if __name__ == '__main__':
                     "-ct", f"{args.cpu_thread}",
                     "-gt", f"{args.gpu_thread}",
                     "-mdr", f"{args.max_decoding_round}",
-                    ">>", result_path,
+                    ">", result_path,
                     "2>&1",
                 ]
             elif args.system == "baseline":
@@ -66,7 +66,7 @@ if __name__ == '__main__':
                     "-dtw", args.model_type,
                     "--step", f"{args.step}",
                     "-t", f"{args.thread}",
-                    ">>", result_path,
+                    ">", result_path,
                     "2>&1",
                 ]
                 
