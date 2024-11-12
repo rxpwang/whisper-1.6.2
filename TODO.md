@@ -168,6 +168,14 @@ Using 10 cores, part of them is E cores
 - Y-axis value: best latency
 Only use ours best and baseline. To show that our system delievers the lowest latency
 
+| Device | baseline | ours |
+| ------------ | ------------ | ------------- |
+| M2 Pro | | 1.84 (+-1.56)s, WER 0.056 |
+| CPU:8, GPU:2 | - | - |
+| CPU:7, GPU:3 | 949.3 (+-97.6) ms | 1654.2 (+-9.6) ms |
+| CPU:6, GPU:4 | 807.2 (+-69.3) ms  | 1658.3 (+-71.8) ms |
+| CPU:5, GPU:5 | 920.2 (+-198.0) ms  | 1604.9 (+-38.2) ms |
+
 #### Second figure
 - Sub plots based on models
 - X-axis: WER, Y-axis: latency
