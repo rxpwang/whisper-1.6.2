@@ -69,5 +69,11 @@ if __name__ == '__main__':
                     ">>", result_path,
                     "2>&1",
                 ]
-            subprocess.run(" ".join(arg_list), shell=True)
- 
+                
+            for i in range(3):
+                subprocess.run(" ".join(arg_list), shell=True)
+                with open(result_path, "r", errors="ignore") as f:
+                    if "ggml_assert" in f.read().lower():
+                        print(f"Error in {result_path}, retrying, attempt {i+1}")
+                    else:
+                        break
