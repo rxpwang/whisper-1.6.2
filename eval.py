@@ -70,7 +70,7 @@ if __name__ == '__main__':
                     "2>&1",
                 ]
                 
-            for i in range(3):
+            while True:
                 subprocess.run(" ".join(arg_list), shell=True)
                 with open(result_path, "r", errors="ignore") as f:
                     if "ggml_assert" in f.read().lower():
