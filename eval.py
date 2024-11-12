@@ -69,7 +69,8 @@ if __name__ == '__main__':
                     ">", result_path,
                     "2>&1",
                 ]
-                
+               
+            i = 0 
             while True:
                 subprocess.run(" ".join(arg_list), shell=True)
                 with open(result_path, "r", errors="ignore") as f:
@@ -77,3 +78,4 @@ if __name__ == '__main__':
                         print(f"Error in {result_path}, retrying, attempt {i+1}")
                     else:
                         break
+                i += 1
