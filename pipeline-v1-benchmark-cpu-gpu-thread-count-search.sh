@@ -21,7 +21,7 @@ sample="bernie4min.wav"
 dtw=${model_type}
 
 # Get the number of all CPU cores on macOS, use all but 2 cores
-total_threads=$(($(sysctl -n hw.physicalcpu)-1))
+total_threads=$(($(sysctl -n hw.physicalcpu)-2))
 # Fallback to a default value if the command fails
 if [ -z "$threads" ]; then
     threads="12"

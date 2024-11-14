@@ -74,7 +74,7 @@ if __name__ == '__main__':
             while True:
                 subprocess.run(" ".join(arg_list), shell=True)
                 with open(result_path, "r", errors="ignore") as f:
-                    if "average latency:" not in f.read().lower():
+                    if "Average latency:" not in f.read().lower():
                         print(f"Error in {result_path}, retrying, attempt {i+1}")
                     else:
                         break

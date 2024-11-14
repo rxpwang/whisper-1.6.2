@@ -170,7 +170,9 @@ Only use ours best and baseline. To show that our system delievers the lowest la
 
 | Device | baseline | ours |
 | ------------ | ------------ | ------------- |
-| M2 Pro | 4.20 (2.39)s, WER 0.043 | 1.84 (+-1.56)s, WER 0.056 |
+| M2 Pro, medium | 4.20 (2.39)s, WER 0.043 | 1.84 (+-1.56)s, WER 0.056 |
+| M2 Pro, base | 0.63 (0.86)s, WER 0.070 | 0.30 (+-0.86)s, WER 0.24: need debug |
+| M2 Pro, small | 1.80 (+-1.27)s, WER 0.043 | 1.02 (0.61)s, WER 0.091 |
 
 #### Second figure
 - Sub plots based on models

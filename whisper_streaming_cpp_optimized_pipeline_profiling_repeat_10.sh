@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Parameters from your command
-model_type="medium"
+model_type="base"
 model="ggml-${model_type}.bin"
 sample="bernie4min.wav"
 dtw=${model_type}
