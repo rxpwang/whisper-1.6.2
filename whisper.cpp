@@ -5285,7 +5285,7 @@ static std::vector<whisper_token_data> whisper_sample_token_topk(
     }
 
     std::discrete_distribution<> dist(probs.begin(), probs.end());
-    WHISPER_LOG_DEBUG("%s: start of sampling of a specific decoder\n", __func__);
+    //WHISPER_LOG_DEBUG("%s: start of sampling of a specific decoder\n", __func__);
     for (int i = 0; i < k; ++i) {
         const auto id = dist(decoder.rng);
         //const auto id = logits_id[i].second; // make the sampling deterministic
