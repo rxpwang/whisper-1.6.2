@@ -178,3 +178,8 @@ Only use ours best and baseline. To show that our system delievers the lowest la
 - Sub plots based on models
 - X-axis: WER, Y-axis: latency
 Use three devices. To show that our system maintains low WER while reducing latency
+
+#### Ablation Study
+- pipeline w/ tag
+  - medium: 1.76s, 94.0%
+  - small: 1.40s, 57.3% ?
