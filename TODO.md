@@ -183,3 +183,6 @@ Use three devices. To show that our system maintains low WER while reducing late
 - pipeline w/ tag
   - medium: 1.76s, 94.0%
   - small: 1.40s, 57.3% ?
+  - base: 0.40s, 71.6%
+
+- baseline w/ tag
