@@ -180,9 +180,9 @@ Only use ours best and baseline. To show that our system delievers the lowest la
 Use three devices. To show that our system maintains low WER while reducing latency
 
 #### Ablation Study
-- pipeline w/ tag
+- serialized pipeline w/ tag
   - medium: 1.76s, 94.0%
   - small: 1.40s, 57.3% ?
   - base: 0.40s, 71.6%
 
-- baseline w/ tag
+- serialized pipeline w/ tag, no beam reduce
