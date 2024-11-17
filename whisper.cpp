@@ -5283,11 +5283,11 @@ static std::vector<whisper_token_data> whisper_sample_token_topk(
     }
 
     std::discrete_distribution<> dist(probs.begin(), probs.end());
-    WHISPER_LOG_DEBUG("%s: start of sampling of a specific decoder\n", __func__);
+    //WHISPER_LOG_DEBUG("%s: start of sampling of a specific decoder\n", __func__);
     for (int i = 0; i < k; ++i) {
         const auto id = dist(decoder.rng);
         //printf("XXX %d %d %f %f %f %f\n", id, tid, probs[id], logprobs[id], pt, ptsum);
-        WHISPER_LOG_DEBUG("%s: XXX %d %d %f %f %f %f\n", __func__, id, tid, probs[id], logprobs[id], pt, ptsum);
+        //WHISPER_LOG_DEBUG("%s: XXX %d %d %f %f %f %f\n", __func__, id, tid, probs[id], logprobs[id], pt, ptsum);
         result.push_back({ id, tid, probs[id], logprobs[id], pt, ptsum, -1, -1, -1, 0.0f, });
 
         if (result[i].id >= vocab.token_beg) {
@@ -7824,11 +7824,11 @@ int whisper_full_with_state_for_whisper_streaming(
     prompt.insert(prompt.end(), prompt_init.begin(), prompt_init.end());
 
     // print the prompt
-    WHISPER_LOG_INFO("\n\n");
-    for (int i = 0; i < (int) prompt.size(); i++) {
-        WHISPER_LOG_INFO("%s: prompt[%d] = %s\n", __func__, i, ctx->vocab.id_to_token.at(prompt[i]).c_str());
-    }
-    WHISPER_LOG_INFO("\n\n");
+    // WHISPER_LOG_INFO("\n\n");
+    // for (int i = 0; i < (int) prompt.size(); i++) {
+    //     WHISPER_LOG_INFO("%s: prompt[%d] = %s\n", __func__, i, ctx->vocab.id_to_token.at(prompt[i]).c_str());
+    // }
+    // WHISPER_LOG_INFO("\n\n");
 
     whisper_kv_cache_clear(state->kv_self);
 
@@ -7980,8 +7980,8 @@ int whisper_full_with_state_for_whisper_streaming_cpu(
             }
         }
 
-        WHISPER_LOG_DEBUG("%s: current decoders number %d\n",
-                        __func__, n_decoders_cur);
+        // WHISPER_LOG_DEBUG("%s: current decoders number %d\n",
+        //                 __func__, n_decoders_cur);
         // sampling: for each decoder, getting the next token it predicts
         // TODO: avoid memory allocations, optimize, avoid threads?
         {
@@ -8140,8 +8140,8 @@ int whisper_full_with_state_for_whisper_streaming_cpu(
                 //whisper_kv_cache_seq_cp(state->kv_self, cur.decoder_idx, WHISPER_MAX_DECODERS + j, -1, -1);
                 whisper_kv_cache_seq_cp(state_cpu->kv_self, cur.decoder_idx, WHISPER_MAX_DECODERS + j, -1, -1);
 
-                WHISPER_LOG_DEBUG("%s: beam search: decoder %d: from decoder %d: token = %10s, plog = %8.5f, sum_logprobs = %8.5f\n",
-                        __func__, j, cur.decoder_idx, ctx_cpu->vocab.id_to_token.at(decoder.sequence.tokens.back().id).c_str(), decoder.sequence.tokens.back().plog, decoder.sequence.sum_logprobs_all);
+                // WHISPER_LOG_DEBUG("%s: beam search: decoder %d: from decoder %d: token = %10s, plog = %8.5f, sum_logprobs = %8.5f\n",
+                //         __func__, j, cur.decoder_idx, ctx_cpu->vocab.id_to_token.at(decoder.sequence.tokens.back().id).c_str(), decoder.sequence.tokens.back().plog, decoder.sequence.sum_logprobs_all);
             }
 
             for (int j = 0; j < n_decoders_cur; ++j) {
@@ -8202,8 +8202,8 @@ int whisper_full_with_state_for_whisper_streaming_cpu(
 
                 {
                     const auto tt = token.pt > 0.10 ? ctx_cpu->vocab.id_to_token.at(token.tid) : "[?]";
-                    WHISPER_LOG_DEBUG("%s: id = %3d, decoder = %d, token = %6d, p = %6.3f, ts = %10s, %6.3f, result_len = %4d '%s'\n",
-                            __func__, i, j, token.id, token.p, tt.c_str(), token.pt, result_len, ctx_cpu->vocab.id_to_token.at(token.id).c_str());
+                    // WHISPER_LOG_DEBUG("%s: id = %3d, decoder = %d, token = %6d, p = %6.3f, ts = %10s, %6.3f, result_len = %4d '%s'\n",
+                    //         __func__, i, j, token.id, token.p, tt.c_str(), token.pt, result_len, ctx_cpu->vocab.id_to_token.at(token.id).c_str());
                 }
 
                 // end of segment
@@ -8562,13 +8562,13 @@ int whisper_full_with_state_for_whisper_streaming_gpu2(
     const int seek_start = params.offset_ms/10;
     const int seek_end = params.duration_ms == 0 ? whisper_n_len_from_state(state) : seek_start + params.duration_ms/10;
     //const auto n_segments = state_cpu->result_all.size() - n_segments_before;
-    WHISPER_LOG_INFO("%s: the n_segments for dtw entering is %d\n", __func__, n_segments);
+    //WHISPER_LOG_INFO("%s: the n_segments for dtw entering is %d\n", __func__, n_segments);
     if (ctx->params.dtw_token_timestamps && n_segments) {
         const int n_frames = std::min(std::min(WHISPER_CHUNK_SIZE * 100, seek_delta), seek_end - seek);
-        WHISPER_LOG_DEBUG("%s: FOR FUNCTION BREAKDOWN OBSERVATION\n", __func__);
-        WHISPER_LOG_DEBUG("%s: n_segments_before = %d, result_all.size() = %d\n", __func__, n_segments_before, state->result_all.size());
-        WHISPER_LOG_DEBUG("%s: n_segments = %d, seek = %d, seek_delta = %d, seek_end = %d, n_frames = %d\n", __func__, n_segments, seek, seek_delta, seek_end, n_frames);
-        WHISPER_LOG_DEBUG("%s: the result_all.size() originally is %d\n", __func__, state->result_all.size());
+        // WHISPER_LOG_DEBUG("%s: FOR FUNCTION BREAKDOWN OBSERVATION\n", __func__);
+        // WHISPER_LOG_DEBUG("%s: n_segments_before = %d, result_all.size() = %d\n", __func__, n_segments_before, state->result_all.size());
+        // WHISPER_LOG_DEBUG("%s: n_segments = %d, seek = %d, seek_delta = %d, seek_end = %d, n_frames = %d\n", __func__, n_segments, seek, seek_delta, seek_end, n_frames);
+        // WHISPER_LOG_DEBUG("%s: the result_all.size() originally is %d\n", __func__, state->result_all.size());
         whisper_exp_compute_token_level_timestamps_dtw(
                 ctx, state, params, state->result_all.size() - n_segments, n_segments, seek, n_frames, 7, params.n_threads);
         // whisper_exp_compute_token_level_timestamps_dtw(
