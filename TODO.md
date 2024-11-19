@@ -186,3 +186,6 @@ Use three devices. To show that our system maintains low WER while reducing late
   - base: 0.40s, 71.6%
 
 - serialized pipeline w/ tag, no beam reduce
+  - medium: 2.86s, 95.1%
+  - small: 1.07, 94.2%
+  - base: 0.34, 88%
