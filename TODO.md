@@ -182,10 +182,10 @@ Use three devices. To show that our system maintains low WER while reducing late
 #### Ablation Study
 - serialized pipeline w/ tag
   - medium: 1.76s, 94.0%
-  - small: 1.40s, 57.3% ?
-  - base: 0.40s, 71.6%
+  - small: 0.59s, 90.6% ?
+  - base: 0.20s, 74.7%
 
 - serialized pipeline w/ tag, no beam reduce
   - medium: 2.86s, 95.1%
-  - small: 1.07, 94.2%
-  - base: 0.34, 88%
+  - small: 1.07s, 94.2%
+  - base: 0.34s, 88%
