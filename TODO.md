@@ -87,7 +87,7 @@ CPU: 7 threads, GPU: 3 threads
 #### Major result
 | system | whisper-base | whisper-medium |
 | ------ | --------------| ---|
-| ours (pipeline-v1) | w/ tag: 190.5 (+-47.5) ms, w/o tag: 217.4 (+-34.3) ms | w/ tag: 1058.5 (+-97.3) ms, w/o tag: 2389.4 (+-178.6) ms | 
+| ours (pipeline-v1) | w/ tag: 190.5 (+-47.5) ms, w/o tag: 217.4 (+-34.3) ms | w/ tag: 1170.4 (+-64.6) ms, w/o tag: 2389.4 (+-178.6) ms | 
 | serialized         | w/ tag: 175.8 (+-32.4) ms, w/o tag: 389.2 (+-73.2) ms | w/ tag: 1362.6 (+-144.3) ms, w/o tag: 2766.0 (+-57.0) ms |
 | baseline           |      | w/ tag: 3079.3 (+-260.7) ms, w/o tag: 3396.1 (+-30.9) ms |
 
