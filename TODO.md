@@ -179,9 +179,9 @@ Only use ours best and baseline. To show that our system delievers the lowest la
 - X-axis: WER, Y-axis: latency
 Use three devices. To show that our system maintains low WER while reducing latency
 
-| Device | baseline | serialized |
-| ------ | -------- | ---------- |
-| M2 Pro, medium | 1000 (4189.98, 0.0416), 1500 (4537.04, 0.0417), 2000 (5279.28, 0.0452) | 250 (2076.00, 0.0475), 500 (2148.40ms, 0.0542), 1000 (2503.80, 0.0436), 1500 (3268.83, 0.0450)
+| Device | baseline | serialized | pipeline |
+| ------ | -------- | ---------- | -------- |
+| M2 Pro, medium | 1000 (4189.98, 0.0416), 1500 (4537.04, 0.0417), 2000 (5279.28, 0.0452) | 250 (2076.00, 0.0475), 500 (2148.40ms, 0.0542), 1000 (2503.80, 0.0436), 1500 (3268.83, 0.0450) | 250 (1939.74, 0.0566), 500 (1974.06, 0.0562), 750 (2433.14, 0.0473) |
 
 #### Ablation Study
 - serialized pipeline w/ tag
