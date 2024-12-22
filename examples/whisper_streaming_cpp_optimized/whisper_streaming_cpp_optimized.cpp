@@ -156,7 +156,7 @@ bool get_audio_chunk(const std::vector<float> &pcmf32_all, std::vector<float> &p
     if (pcmf32_index + num_samples > pcmf32_all.size()) {
         num_samples = pcmf32_all.size() - pcmf32_index;
     }
-    printf("Get new chunk of audio start from %lld and end with %lld.\n", pcmf32_index_sample, pcmf32_index_sample + num_samples);
+    //printf("Get new chunk of audio start from %lld and end with %lld.\n", pcmf32_index_sample, pcmf32_index_sample + num_samples);
     // there is no stopping mechanism for now, so the program will only terminate when it reaches the end of the audio
     // with a segfault (access out-of-bound memory)
     bool has_more_audio = true;
@@ -790,7 +790,7 @@ int main(int argc, char ** argv) {
             }
 
             printf("\n");
-            printf("Start new round of inference, data length %ld, buffer offset %f.\n", pcmf32.size(), buffer_time_offset);
+            //printf("Start new round of inference, data length %ld, buffer offset %f.\n", pcmf32.size(), buffer_time_offset);
 
             // preparing reference for beam reduce
             // std::vector<std::tuple<double, double, std::string>> reference_transcript_tokens = transcript_buffer.self_committed_in_buffer + transcript_buffer.self_buffer;
@@ -808,16 +808,16 @@ int main(int argc, char ** argv) {
                 return 6;
             }
 
-            whisper_print_timings(ctx);
-            whisper_print_timings(ctx_cpu);
+            //whisper_print_timings(ctx);
+            //whisper_print_timings(ctx_cpu);
 
             // whisper_streaming asr.ts_words in an iter, the return value is the tsw with format [(beg,end,"word1"), ...]
             std::vector<std::tuple<double, double, std::string>> tsw = output_word_level_timestamp(ctx, params, true);
-            printf("New round of transcript length: %d\n", tsw.size());
+            //printf("New round of transcript length: %d\n", tsw.size());
             // whisper_streaming transcript buffer management
             // transcript_buffer.insert()
             transcript_buffer.insert(tsw, buffer_time_offset);
-            transcript_buffer.print_info();
+            //transcript_buffer.print_info();
             // transcript_buffer.flush()
             std::vector<std::tuple<double, double, std::string>> o = transcript_buffer.flush();
             // committed.extend(o)
@@ -832,7 +832,9 @@ int main(int argc, char ** argv) {
             std::tuple<double, double, std::string> the_rest = to_flush(r_o, buffer_time_offset);
             std::string complete_transcript = std::get<2>(completed);
             std::string incomplete_transcript = std::get<2>(the_rest);
-            printf("COMPLETE NOW: %s\n", complete_transcript.c_str());
+            //printf("COMPLETE NOW: %s\n", complete_transcript.c_str());         
+            system("clear");
+            print_token_timestamp_vector_list_transcript(transcript_buffer.self_committed_in_buffer);
             printf("INCOMPLETE: %s\n", incomplete_transcript.c_str());
 
             // recording the latency for each token
@@ -901,7 +903,7 @@ int main(int argc, char ** argv) {
 
                         output += "\n";
 
-                        printf("%s", output.c_str());
+                        //printf("%s", output.c_str());
                         fflush(stdout);
                         /*
                         if (params.fname_out.length() > 0) {

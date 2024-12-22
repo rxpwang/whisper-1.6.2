@@ -133,7 +133,7 @@ static void whisper_log_callback_default(ggml_log_level level, const char * text
 #define WHISPER_LOG_INFO(...)  whisper_log_internal(GGML_LOG_LEVEL_INFO , __VA_ARGS__)
 
 // define this to enable verbose trace logging - useful for debugging purposes
-#define WHISPER_DEBUG
+//#define WHISPER_DEBUG
 
 #if defined(WHISPER_DEBUG)
 #define WHISPER_LOG_DEBUG(...) whisper_log_internal(GGML_LOG_LEVEL_DEBUG, __VA_ARGS__)
@@ -2235,7 +2235,7 @@ static bool whisper_encode_internal(
     ggml_abort_callback   abort_callback,
                    void * abort_callback_data) {
     const int64_t t_start_us = ggml_time_us();
-    WHISPER_LOG_INFO("%s: Current seek: %d\n", __func__, mel_offset);
+    WHISPER_LOG_DEBUG("%s: Current seek: %d\n", __func__, mel_offset);
     // conv
     {
         auto & alloc = wstate.alloc_conv.alloc;
@@ -5497,9 +5497,9 @@ int whisper_full_with_state(
     }
     
     if (params.audio_ctx == -1) {
-        WHISPER_LOG_INFO("%s: params audio_ctx -1 detected\n", __func__);
+        WHISPER_LOG_DEBUG("%s: params audio_ctx -1 detected\n", __func__);
         state->exp_n_audio_ctx = GGML_PAD(int(whisper_n_len_from_state(state) / 2.0), 8);
-        WHISPER_LOG_INFO("%s: state exp_n_audio_ctx updated to %d\n", __func__, state->exp_n_audio_ctx);
+        WHISPER_LOG_DEBUG("%s: state exp_n_audio_ctx updated to %d\n", __func__, state->exp_n_audio_ctx);
     } else {
         state->exp_n_audio_ctx = params.audio_ctx;
     }
@@ -5701,7 +5701,7 @@ int whisper_full_with_state(
 
             int n_max = whisper_n_text_ctx(ctx)/2 - 4;
             n_max = (n_max < params.max_round_decode) ? n_max : params.max_round_decode;
-            WHISPER_LOG_INFO("%s: max decode round: %d\n", __func__, n_max);
+            WHISPER_LOG_DEBUG("%s: max decode round: %d\n", __func__, n_max);
             //for (int i = 0, n_max = whisper_n_text_ctx(ctx)/2 - 4; i < n_max; ++i) {
             for (int i = 0; i < n_max; ++i) {
                 const int64_t t_start_sample_us = ggml_time_us();
@@ -5921,7 +5921,7 @@ int whisper_full_with_state(
                     // sometimes, the decoding can get stuck in a repetition loop
                     // this is an attempt to mitigate such cases - we flag the decoding as failed and use a fallback strategy
                     if (i == n_max - 1 && (result_len == 0 || seek_delta < 100*WHISPER_CHUNK_SIZE/2)) {
-                        WHISPER_LOG_INFO("%s: decoder %d: failed due to repetition loop\n", __func__, j);
+                        WHISPER_LOG_DEBUG("%s: decoder %d: failed due to repetition loop\n", __func__, j);
                         failed = true;
                         continue;
                     }
@@ -7199,10 +7199,10 @@ static void whisper_exp_compute_token_level_timestamps_dtw(
                                int   medfilt_width,
                                int   n_threads)
 {
-    WHISPER_LOG_INFO("Start DTW word level timestamp estimation.\n");
+    WHISPER_LOG_DEBUG("Start DTW word level timestamp estimation.\n");
     const int n_audio_ctx = state->exp_n_audio_ctx > 0 ? state->exp_n_audio_ctx : ctx->model.hparams.n_audio_ctx;
-    WHISPER_LOG_INFO("%s: the n_frames for dtw entering is %d\n", __func__, n_frames);
-    WHISPER_LOG_INFO("%s: the n_audio_ctx for dtw entering is %d\n", __func__, n_audio_ctx);
+    WHISPER_LOG_DEBUG("%s: the n_frames for dtw entering is %d\n", __func__, n_frames);
+    WHISPER_LOG_DEBUG("%s: the n_audio_ctx for dtw entering is %d\n", __func__, n_audio_ctx);
     WHISPER_ASSERT(medfilt_width % 2);
     //WHISPER_ASSERT(n_frames <= n_audio_ctx * 2);  // tentatively comment and so far don't see abnormalty. we see error when don't comment this.
     WHISPER_ASSERT(ctx->params.dtw_aheads_preset != WHISPER_AHEADS_NONE);
@@ -7246,7 +7246,7 @@ static void whisper_exp_compute_token_level_timestamps_dtw(
     whisper_batch_prep_legacy(state->batch, tokens.data(), tokens.size(), 0, 0);
     whisper_kv_cache_seq_rm(state->kv_self, 0, 0, -1);
     if (!whisper_decode_internal(*ctx, *state, state->batch, n_threads, true, nullptr, nullptr)) {
-        WHISPER_LOG_INFO("DECODER FAILED\n");
+        WHISPER_LOG_DEBUG("DECODER FAILED\n");
         WHISPER_ASSERT(0);
     }
     WHISPER_ASSERT(state->aheads_cross_QKs != nullptr);
@@ -7546,7 +7546,7 @@ int whisper_full_with_state_for_whisper_streaming(
                            int   n_samples,
                    const std::vector<std::tuple<double, double, std::string>> & reference_transcript_tokens) {
 
-    print_token_timestamp_vector(reference_transcript_tokens);
+    //print_token_timestamp_vector(reference_transcript_tokens);
 
     if (n_samples > 0) {
         // compute log mel spectrogram
@@ -7688,9 +7688,9 @@ int whisper_full_with_state_for_whisper_streaming(
     }
     
     if (params.audio_ctx == -1) {
-        WHISPER_LOG_INFO("%s: params audio_ctx -1 detected\n", __func__);
+        WHISPER_LOG_DEBUG("%s: params audio_ctx -1 detected\n", __func__);
         state->exp_n_audio_ctx = GGML_PAD(int(whisper_n_len_from_state(state) / 2.0), 8);
-        WHISPER_LOG_INFO("%s: state exp_n_audio_ctx updated to %d\n", __func__, state->exp_n_audio_ctx);
+        WHISPER_LOG_DEBUG("%s: state exp_n_audio_ctx updated to %d\n", __func__, state->exp_n_audio_ctx);
     } else {
         state->exp_n_audio_ctx = params.audio_ctx;
     }
@@ -7967,7 +7967,7 @@ int whisper_full_with_state_for_whisper_streaming_cpu(
 
     int n_max = whisper_n_text_ctx(ctx_cpu)/2 - 4;
     n_max = (n_max < params.max_round_decode) ? n_max : params.max_round_decode;
-    WHISPER_LOG_INFO("%s: max decode round: %d\n", __func__, n_max);
+    WHISPER_LOG_DEBUG("%s: max decode round: %d\n", __func__, n_max);
     
     // each loop is one decoding round. each round results in one new token in each decoder
     for (int i = 0; i < n_max; ++i) {
@@ -8242,13 +8242,13 @@ int whisper_full_with_state_for_whisper_streaming_cpu(
             // sometimes, the decoding can get stuck in a repetition loop
             // this is an attempt to mitigate such cases - we flag the decoding as failed and use a fallback strategy
             if (i == n_max - 1 && (result_len == 0 || seek_delta < 100*WHISPER_CHUNK_SIZE/2)) {
-                WHISPER_LOG_INFO("%s: decoder %d: failed due to repetition loop\n", __func__, j);
+                WHISPER_LOG_DEBUG("%s: decoder %d: failed due to repetition loop\n", __func__, j);
                 failed = true;
                 continue;
             }
 
             if ((i > 20) && has_subvector_length_2_repeated_3_times( decoder.sequence.tokens)) {
-                WHISPER_LOG_INFO("%s: decoder %d: failed due to repetition loop\n", __func__, j);
+                WHISPER_LOG_DEBUG("%s: decoder %d: failed due to repetition loop\n", __func__, j);
                 failed = true;
                 continue;
             }
@@ -8617,6 +8617,17 @@ void print_token_timestamp_vector(const std::vector<std::tuple<double, double, s
 
         WHISPER_LOG_DEBUG("%s: Start Time: %f, End Time: %f, Transcript: %s\n", __func__, start_time, end_time, transcript.c_str());
     }
+}
+
+void print_token_timestamp_vector_list_transcript(const std::vector<std::tuple<double, double, std::string>>& committed) {
+    std::string full_transcript;
+    for (const auto& entry : committed) {
+        double start_time, end_time;
+        std::string transcript;
+        std::tie(start_time, end_time, transcript) = entry;
+        full_transcript += transcript;
+    }
+    printf("COMPLETE TRANSCRIPT: %s\n", full_transcript.c_str());
 }
 
 char WhisperToLowercase(char c) {

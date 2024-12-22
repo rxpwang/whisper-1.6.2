@@ -692,6 +692,7 @@ extern "C" {
     WHISPER_API void whisper_log_set(ggml_log_callback log_callback, void * user_data);
 
     WHISPER_API void print_token_timestamp_vector(const std::vector<std::tuple<double, double, std::string>>& committed);
+    WHISPER_API void print_token_timestamp_vector_list_transcript(const std::vector<std::tuple<double, double, std::string>>& committed);
 
     // helper functions collection for whisper_streaming_cpp_optimized
     WHISPER_API char WhisperToLowercase(char c);
