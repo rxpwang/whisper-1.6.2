@@ -820,10 +820,10 @@ int main(int argc, char ** argv) {
                 pcmf32 = audio_with_tag;
             }
             
-            if (pcmf32.size() < n_samples_step) {
-                pcmf32.resize(n_samples_step, 0.0f); // Pad with zeros
-                is_running = false;
-            }
+            // if (pcmf32.size() < n_samples_step) {
+            //     pcmf32.resize(n_samples_step, 0.0f); // Pad with zeros
+            //     is_running = false;
+            // }
 
             printf("\n");
             //printf("Start new round of inference, data length %ld, buffer offset %f.\n", pcmf32.size(), buffer_time_offset);
