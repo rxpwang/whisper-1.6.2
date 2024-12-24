@@ -2,6 +2,7 @@
 //
 // A very quick-n-dirty implementation serving mainly as a proof of concept.
 //
+#include "common-sdl.h"
 #include "common.h"
 #include "whisper.h"
 #include "ggml.h"
@@ -167,6 +168,41 @@ bool get_audio_chunk(const std::vector<float> &pcmf32_all, std::vector<float> &p
         pcmf32_new.insert(pcmf32_new.end(), pcmf32_all.begin()+pcmf32_index_sample,
                                             pcmf32_all.begin()+pcmf32_index_sample+num_samples);
     }
+    return has_more_audio;
+}
+
+bool get_audio_chunk_from_mic(audio_async &audio, std::vector<float> &pcmf32_all, std::vector<float> &pcmf32_new, int64_t pcmf32_index, int step_ms, int sample_rate) {
+    int64_t pcmf32_index_sample = (pcmf32_index * sample_rate) / 1000;
+    int num_samples = (step_ms * sample_rate) / 1000;
+    pcmf32_new.clear();
+    
+    // if (pcmf32_index + num_samples > pcmf32_all.size()) {
+    //     num_samples = pcmf32_all.size() - pcmf32_index;
+    // }
+    //printf("Get new chunk of audio start from %lld and end with %lld.\n", pcmf32_index_sample, pcmf32_index_sample + num_samples);
+    // there is no stopping mechanism for now, so the program will only terminate when it reaches the end of the audio
+    // with a segfault (access out-of-bound memory)
+    bool has_more_audio = true;
+    // if (pcmf32_index_sample + num_samples >= pcmf32_all.size()) {
+    //     has_more_audio = false;
+    //     pcmf32_new.insert(pcmf32_new.end(), pcmf32_all.begin()+pcmf32_index_sample, pcmf32_all.end());
+    // } else {
+    //     pcmf32_new.insert(pcmf32_new.end(), pcmf32_all.begin()+pcmf32_index_sample,
+    //                                         pcmf32_all.begin()+pcmf32_index_sample+num_samples);
+    // }
+    std::vector<float> pcmf32_tmp;
+    while(true) {
+        audio.get(step_ms, pcmf32_tmp);
+
+        if ((int) pcmf32_tmp.size() >= num_samples) {
+            audio.clear();
+            break;
+        }
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    }
+    pcmf32_all.insert(pcmf32_all.end(), pcmf32_tmp.begin(), pcmf32_tmp.end());
+    pcmf32_new.insert(pcmf32_new.end(), pcmf32_all.begin() + pcmf32_index_sample, pcmf32_all.begin() + pcmf32_index_sample + pcmf32_tmp.size());
+
     return has_more_audio;
 }
 
@@ -465,15 +501,14 @@ int main(int argc, char ** argv) {
     params.max_tokens     = 0;
 
     // init audio
-    /* 
-    audio_async audio(params.length_ms);
+    audio_async audio(30000); // maximum 30s audio context
     if (!audio.init(params.capture_id, WHISPER_SAMPLE_RATE)) {
         fprintf(stderr, "%s: audio.init() failed!\n", __func__);
         return 1;
     }
 
     audio.resume();
-    */
+
     // whisper init
     if (params.language != "auto" && whisper_lang_id(params.language.c_str()) == -1){
         fprintf(stderr, "error: unknown language '%s'\n", params.language.c_str());
@@ -590,9 +625,9 @@ int main(int argc, char ** argv) {
     std::vector<float> pcmf32_all;               // mono-channel F32 PCM
     std::vector<std::vector<float>> pcmf32s; // stereo-channel F32 PCM
 
-    if (!::read_wav(fname_inp, pcmf32_all, pcmf32s, false)) {
-        fprintf(stderr, "error: failed to read WAV file '%s'\n", fname_inp.c_str());
-    }
+    // if (!::read_wav(fname_inp, pcmf32_all, pcmf32s, false)) {
+    //     fprintf(stderr, "error: failed to read WAV file '%s'\n", fname_inp.c_str());
+    // }
     std::vector<float> pcmf32_audio_tag;
     if (params.audio_tag != "") {
         pcmf32_audio_tag = readCSVToVector(params.audio_tag);
@@ -649,7 +684,7 @@ int main(int argc, char ** argv) {
 
     // main audio loop
     while (is_running) {
-        
+        is_running = sdl_poll_events();
         if (!is_running) {
             break;
         }
@@ -691,7 +726,8 @@ int main(int argc, char ** argv) {
             }
             // get the ingested data so far
             pcmf32_index_end = ggml_time_us() / 1000.0 - start;
-            is_running = get_audio_chunk(pcmf32_all, pcmf32_new, pcmf32_index, pcmf32_index_end - pcmf32_index, WHISPER_SAMPLE_RATE);
+            //is_running = get_audio_chunk(pcmf32_all, pcmf32_new, pcmf32_index, pcmf32_index_end - pcmf32_index, WHISPER_SAMPLE_RATE);
+            is_running = get_audio_chunk_from_mic(audio, pcmf32_all, pcmf32_new, pcmf32_index, pcmf32_index_end - pcmf32_index, WHISPER_SAMPLE_RATE);
             // update the start point for next audio segment
             pcmf32_index = pcmf32_index_end;
 

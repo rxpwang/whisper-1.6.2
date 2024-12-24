@@ -491,8 +491,8 @@ stream_simulation: examples/stream_simulation/stream_simulation.cpp $(SRC_COMMON
 whisper_streaming_cpp: examples/whisper_streaming_cpp/whisper_streaming_cpp.cpp $(SRC_COMMON) $(WHISPER_OBJ)
 	$(CXX) $(CXXFLAGS) examples/whisper_streaming_cpp/whisper_streaming_cpp.cpp $(SRC_COMMON) $(WHISPER_OBJ) -o whisper_streaming_cpp $(LDFLAGS)
 
-whisper_streaming_cpp_optimized: examples/whisper_streaming_cpp_optimized/whisper_streaming_cpp_optimized.cpp $(SRC_COMMON) $(WHISPER_OBJ)
-	$(CXX) $(CXXFLAGS) examples/whisper_streaming_cpp_optimized/whisper_streaming_cpp_optimized.cpp $(SRC_COMMON) $(WHISPER_OBJ) -o whisper_streaming_cpp_optimized $(LDFLAGS)
+whisper_streaming_cpp_optimized: examples/whisper_streaming_cpp_optimized/whisper_streaming_cpp_optimized.cpp $(SRC_COMMON) $(SRC_COMMON_SDL) $(WHISPER_OBJ)
+	$(CXX) $(CXXFLAGS) examples/whisper_streaming_cpp_optimized/whisper_streaming_cpp_optimized.cpp $(SRC_COMMON) $(SRC_COMMON_SDL) $(WHISPER_OBJ) -o whisper_streaming_cpp_optimized $(CC_SDL) $(LDFLAGS)
 
 command: examples/command/command.cpp $(SRC_COMMON) $(SRC_COMMON_SDL) $(WHISPER_OBJ)
 	$(CXX) $(CXXFLAGS) examples/command/command.cpp $(SRC_COMMON) $(SRC_COMMON_SDL) $(WHISPER_OBJ) -o command $(CC_SDL) $(LDFLAGS)
