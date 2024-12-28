@@ -30,6 +30,8 @@ To run:
 ./run.sh
 ```
 
+https://github.com/user-attachments/assets/fa5a8b44-bbf4-4e70-813d-d77a62d65ad2
+
 ## The Console Demo
 
 ### Compilation
