@@ -47,6 +47,8 @@ examples/whisper.objc/whisper.objc.xcodeproj/xcshareddata
 examples/whisper.objc/whisper.objc.xcodeproj/xcuserdata/
 examples/whisper.objc/whisper.objc.xcodeproj/project.xcworkspace/xcuserdata
 
+examples/whisper-qt/whisper-qt.app/
+
 extra/bench-gg.txt
 
 models/*.mlmodel
@@ -61,3 +63,5 @@ cmake-build-debug/
 .cxx/
 .gradle/
 local.properties
+examples/whisper-qt/.qmake.stash
+whisper_streaming_cpp_optimized
