@@ -481,6 +481,74 @@ std::tuple<double, double, std::string> to_flush(
     return std::make_tuple(beg, end, concatenated);
 }
 
+// check current system status to see if restarting is needed. there are following cases
+// no voice activity for the latest 10s
+// total audio length reaches 2 min
+// silence for 10s
+// audio buffer reaches 27 s
+// return true when restart, continue the while loop and get the new audio.
+bool restarting_check(  std::vector<float> &pcmf32_audio_buffer,
+                        std::vector<float> &pcmf32,
+                        std::vector<float> &pcmf32_old,
+                        std::vector<float> &pcmf32_new,
+                        std::vector<whisper_token> &prompt_tokens,
+                        std::vector<float> &pcmf32_all,
+                        std::vector<std::vector<float>> &pcmf32s,
+                        int64_t &pcmf32_index,
+                        int64_t &start,
+                        int64_t &pcmf32_index_end,
+                        int64_t &now,
+                        HypothesisBuffer &transcript_buffer,
+                        double &buffer_time_offset,
+                        std::vector<std::tuple<double, double, std::string>> &committed,
+                        std::vector<std::tuple<double, double, std::string>> &committed_all,
+                        whisper_params &params
+                        ) {
+    // check if restarting is needed
+    bool restarting_needed = false;
+    bool last_10s_no_vad = ::vad_simple(pcmf32_audio_buffer, WHISPER_SAMPLE_RATE, 10000, params.vad_thold, params.freq_thold, false);
+    if (last_10s_no_vad) { // no voice activity for the latest 10s
+        printf("No voice activity for the latest 10s.\n");
+        restarting_needed = true;
+    } else if (pcmf32_all.size() >= 2 * 60 * WHISPER_SAMPLE_RATE) { // total audio length reaches 2 min
+        printf("Total audio length reaches 2 min.\n");
+        restarting_needed = true;
+    } else if (pcmf32_audio_buffer.size() >= 27 * WHISPER_SAMPLE_RATE) { // audio buffer reaches 27 s
+        printf("Audio buffer reaches 27 s.\n");
+        restarting_needed = true;
+    } else if (pcmf32_audio_buffer.size() >= 10 * WHISPER_SAMPLE_RATE) { // silence for 10s
+        if (committed.size() < 5) {
+            printf("Silence for 10s.\n");
+            restarting_needed = true;
+        }
+    }
+    
+    // restarting the process
+    if (restarting_needed == true) {
+        printf("Restarting the process.\n");
+        pcmf32_audio_buffer.clear();
+        pcmf32.clear();
+        pcmf32_old.clear();
+        pcmf32_new.clear();
+        prompt_tokens.clear();
+        pcmf32_all.clear();
+        pcmf32s.clear();
+        pcmf32_index = 0;
+        start = ggml_time_us() / 1000.0 - pcmf32_index;
+        pcmf32_index_end = 0;
+        now = 0;
+        buffer_time_offset = 0.0;
+        committed_all.insert(committed_all.end(), committed.begin(), committed.end());
+        committed.clear();
+        transcript_buffer.self_committed_in_buffer.clear();
+        transcript_buffer.self_buffer.clear();
+        transcript_buffer.self_new.clear();
+        transcript_buffer.self_last_committed_time = 0.0;
+        transcript_buffer.self_last_committed_word = "";
+    }
+    return restarting_needed;
+}
+
 /* fxl: callbacks needed: 
     (input/output)
     - any token(s) "confirmed" --- incremental
@@ -701,7 +769,8 @@ int thread_main(int argc, char ** argv,
     std::vector<float> pcmf32_audio_buffer;
     HypothesisBuffer transcript_buffer; // fxl: also holds the "confirmed" transcript, which is retired later
     double buffer_time_offset = 0;
-    std::vector<std::tuple<double, double, std::string>> committed; // fxl: whole transcript, accumulated 
+    std::vector<std::tuple<double, double, std::string>> committed; // fxl: whole transcript, accumulated
+    std::vector<std::tuple<double, double, std::string>> committed_all; // fxl: whole transcript, accumulated
 
     // whisper_streaming begin_flag. to make the first segment of the audio at least a certain length
     int begin_flag = 0;
@@ -1023,6 +1092,16 @@ int thread_main(int argc, char ** argv,
         //whisper_free(ctx);
         //struct whisper_context * ctx = whisper_init_from_file_with_params(params.model.c_str(), cparams);
         //ctx = whisper_init_from_file_with_params(params.model.c_str(), cparams);
+        // check current system status to see if restarting is needed. there are following cases
+        // no voice activity for the latest 10s
+        // total audio length reaches 2 min
+        // silence for 10s
+        // audio buffer reaches 27 s
+        // if restart is needed, many relevent variable will be reinitiate in the function.
+        bool need_restarting = restarting_check(pcmf32_audio_buffer, pcmf32, pcmf32_old, pcmf32_new, prompt_tokens, pcmf32_all, pcmf32s, pcmf32_index, start, pcmf32_index_end, now, transcript_buffer, buffer_time_offset, committed, committed_all, params);
+        // if (need_restarting == true) {
+        //     continue;
+        // }    
     }
 
     //audio.pause();
