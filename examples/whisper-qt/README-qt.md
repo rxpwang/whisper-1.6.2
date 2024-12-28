@@ -1,5 +1,5 @@
 # the qt version -- by FL Dec 2024
-
+## in whisper-1.6.2 directory
 make libwhisper.a
 make lib_whisper_stream.a
 
@@ -7,12 +7,16 @@ make lib_whisper_stream.a
 install: 
 brew install qt
 
+## in whisper-1.6.2/examples/whisper-qt directory 
 to build: 
 qmake 
 make
 
-to run: 
+to run with default settings: 
 test-qt.app/Contents/MacOS/test-qt
+
+to run with our settings:
+./run.sh
 
 ## cmake 
 cannot get it work yet. TBD
