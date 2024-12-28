@@ -904,7 +904,7 @@ int thread_main(int argc, char ** argv,
             // system("clear");
             // fxl: below - print from transc buffer (just confirmed, text untrimmed yet) as string. TODO print timestamps
             print_token_timestamp_vector_list_transcript(transcript_buffer.self_committed_in_buffer); 
-            printf("INCOMPLETE: %s\n", incomplete_transcript.c_str());
+            printf("(INCOMPLETE: %s)\n", incomplete_transcript.c_str());
 
             // recording the latency for each token
             int step_end = (ggml_time_us() / 1000.0 - start) / 1000.0;

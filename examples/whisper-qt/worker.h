@@ -23,7 +23,8 @@ public:
 private: 
     // callback internals
     void confirm_tokens(std::vector<std::tuple<double, double, std::string>>& committed) {
-        for (const auto& entry : committed) {
+        
+        /* for (const auto& entry : committed) {
             double start_time, end_time;
             std::string transcript;
             std::tie(start_time, end_time, transcript) = entry;
@@ -32,12 +33,12 @@ private:
                       << ", End Time: " << end_time 
                       << ", Transcript: " << transcript 
                       << std::endl;
-        }
+        } */
         emit signal_confirm_tokens(committed);
     };
 
     void unconfirmed_tokens(std::vector<std::tuple<double, double, std::string>>& unconfirmed) {
-        for (const auto& entry : unconfirmed) {
+        /* for (const auto& entry : unconfirmed) {
             double start_time, end_time;
             std::string transcript;
             std::tie(start_time, end_time, transcript) = entry;
@@ -46,7 +47,7 @@ private:
                       << ", End Time: " << end_time 
                       << ", Transcript: " << transcript 
                       << std::endl;
-        }
+        } */
         emit signal_unconfirmed_tokens(unconfirmed);
     };
 
@@ -73,7 +74,7 @@ public slots:
         thread_main(this->argc, this->argv, 
             // IO
             confirm_tokens_callback,
-            NULL, // TBD
+            unconfirmed_tokens_callback,
             // perf stats
             NULL, // TBD
             // status

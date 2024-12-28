@@ -14,6 +14,12 @@ public:
         auto *layout = new QVBoxLayout(this);
 
         label = new QLabel("whisper streaming", this);
+        label->setWordWrap(true);
+        label->setFixedWidth(500);
+
+        label->setMinimumHeight(50); // Set the minimum height to 50 pixels
+        label->setMaximumHeight(100); // Allow resizing up to 100 pixels
+
         auto *button = new QPushButton("Start", this);
 
         layout->addWidget(label);
@@ -38,6 +44,7 @@ private slots:
         connect(workerThread, &QThread::finished, workerThread, &QThread::deleteLater);
 
         connect(worker, &Worker::signal_confirm_tokens, this, &MainWindow::onConfirmedTokens);
+        connect(worker, &Worker::signal_unconfirmed_tokens, this, &MainWindow::onUnconfirmedTokens);
 
         workerThread->start();
     }
@@ -47,16 +54,45 @@ private slots:
     }
 
     void onConfirmedTokens(const std::vector<std::tuple<double, double, std::string>> &tokens) {
-        QString text = "";
-        for (const auto &entry : tokens) {
-            double start_time, end_time;
-            std::string transcript;
-            std::tie(start_time, end_time, transcript) = entry;
-            text += QString::fromStdString(transcript) + " ";
-        }
-        label->setText(text);
+        all_confirmed_tokens.insert(all_confirmed_tokens.end(), tokens.begin(), tokens.end());        
+        render_text();
+    }
+
+    void onUnconfirmedTokens(const std::vector<std::tuple<double, double, std::string>> &tokens) {
+        unconfirmed_tokens = tokens;
+        render_text();
     }
 
 private:
+    void render_text(void) {
+        // render the confirmed tokens (only the last N tokens)
+        int N = 100; 
+        QString text = "<font color='green'><b>"; // HTML format
+        unsigned long start_index = std::max(0, static_cast<int>(all_confirmed_tokens.size()) - N);
+        for (unsigned long i = start_index; i < all_confirmed_tokens.size(); ++i) {
+            double start_time, end_time;
+            std::string transcript;
+            std::tie(start_time, end_time, transcript) = all_confirmed_tokens[i];
+            text += QString::fromStdString(transcript) + " ";
+        }
+        text += "</b></font>";
+        
+        // render all the unconfirmed tokens
+        text += "<font color='gray'>"; // HTML format
+        for (const auto& token : unconfirmed_tokens) {
+            double start_time, end_time;
+            std::string transcript;
+            std::tie(start_time, end_time, transcript) = token;
+            text += QString::fromStdString(transcript) + " ";
+        }
+        text += "</font>";
+
+        std::cout << text.toStdString() << std::endl;
+
+        label->setText(text);
+    }
+
     QLabel *label;
+    std::vector<std::tuple<double, double, std::string>> all_confirmed_tokens;
+    std::vector<std::tuple<double, double, std::string>> unconfirmed_tokens;
 };
