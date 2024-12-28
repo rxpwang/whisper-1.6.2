@@ -516,12 +516,7 @@ bool restarting_check(  std::vector<float> &pcmf32_audio_buffer,
     } else if (pcmf32_audio_buffer.size() >= 27 * WHISPER_SAMPLE_RATE) { // audio buffer reaches 27 s
         printf("Audio buffer reaches 27 s.\n");
         restarting_needed = true;
-    } else if (pcmf32_audio_buffer.size() >= 10 * WHISPER_SAMPLE_RATE) { // silence for 10s
-        if (committed.size() < 5) {
-            printf("Silence for 10s.\n");
-            restarting_needed = true;
-        }
-    }
+    } 
     
     // restarting the process
     if (restarting_needed == true) {
