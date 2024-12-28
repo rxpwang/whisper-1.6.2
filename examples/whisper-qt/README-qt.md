@@ -1,6 +1,5 @@
 # the qt version -- by FL Dec 2024
 
-
 make libwhisper.a
 make lib_whisper_stream.a
 

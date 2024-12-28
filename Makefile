@@ -465,6 +465,7 @@ clean:
 #
 
 CC_SDL=`sdl2-config --cflags --libs`
+CC_SDL0=`sdl2-config --cflags`    # no link flags
 
 SRC_COMMON     = examples/common.cpp examples/common-ggml.cpp examples/grammar-parser.cpp
 SRC_COMMON_SDL = examples/common-sdl.cpp
@@ -494,7 +495,7 @@ whisper_streaming_cpp: examples/whisper_streaming_cpp/whisper_streaming_cpp.cpp 
 whisper_streaming_cpp_optimized: examples/whisper_streaming_cpp_optimized/whisper_streaming_cpp_optimized.cpp $(SRC_COMMON) $(SRC_COMMON_SDL) $(WHISPER_OBJ)
 	$(CXX) $(CXXFLAGS) examples/whisper_streaming_cpp_optimized/whisper_streaming_cpp_optimized.cpp $(SRC_COMMON) $(SRC_COMMON_SDL) $(WHISPER_OBJ) -o whisper_streaming_cpp_optimized $(CC_SDL) $(LDFLAGS)
 
-# ---- fxl ----- #
+# ---- fxl, for qt demo ----- #
 common.o: examples/common.cpp
 	$(CXX) $(CXXFLAGS) -c examples/common.cpp -o common.o
 
@@ -505,10 +506,10 @@ grammar-parser.o: examples/grammar-parser.cpp
 	$(CXX) $(CXXFLAGS) -c examples/grammar-parser.cpp -o grammar-parser.o
 
 common-sdl.o: examples/common-sdl.cpp
-	$(CXX) $(CXXFLAGS) -c examples/common-sdl.cpp -o common-sdl.o $(CC_SDL)
+	$(CXX) $(CXXFLAGS) -c examples/common-sdl.cpp -o common-sdl.o $(CC_SDL0)
 
 whisper-qt.o: examples/whisper-qt/whisper-qt.cpp
-	$(CXX) $(CXXFLAGS) -c examples/whisper-qt/whisper-qt.cpp -o whisper-qt.o $(CC_SDL)
+	$(CXX) $(CXXFLAGS) -c examples/whisper-qt/whisper-qt.cpp -o whisper-qt.o $(CC_SDL0)
 
 lib_whisper_stream.a: whisper-qt.o common.o common-ggml.o grammar-parser.o common-sdl.o
 	$(AR) rcs lib_whisper_stream.a whisper-qt.o common.o common-ggml.o grammar-parser.o common-sdl.o

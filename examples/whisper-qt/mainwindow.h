@@ -20,15 +20,15 @@ public:
         label->setMinimumHeight(50); // Set the minimum height to 50 pixels
         label->setMaximumHeight(100); // Allow resizing up to 100 pixels
 
-        auto *button = new QPushButton("Start", this);
+        // auto *button = new QPushButton("Start", this);
 
         layout->addWidget(label);
-        layout->addWidget(button);
+        // layout->addWidget(button);
 
-        connect(button, &QPushButton::clicked, this, &MainWindow::startWorker);
+        // connect(button, &QPushButton::clicked, this, &MainWindow::startWorker);
+        startWorker(); 
     }
 
-private slots:
     void startWorker() {
         auto *worker = new Worker(argc, argv);
         auto *workerThread = new QThread;
@@ -49,6 +49,7 @@ private slots:
         workerThread->start();
     }
 
+private slots:
     void updateLabel(const QString &text) {
         label->setText(text); // Update UI
     }
