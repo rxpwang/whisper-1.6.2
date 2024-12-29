@@ -8,17 +8,16 @@
 */
 
 #include <QOpenGLWidget>
-// #include <QOpenGLFunctions>
-#include <QOpenGLFunctions_3_3_Core>
-#include <QOpenGLShaderProgram>
-#include <QOpenGLBuffer>
+#include <QOpenGLFunctions>
+// #include <QOpenGLShaderProgram>
+// #include <QOpenGLBuffer>
 
 #include <vector>
 #include <algorithm>
 #include <cmath>
 #include <iostream>
 
-class WaveformWidget : public QOpenGLWidget, protected QOpenGLFunctions_3_3_Core
+class WaveformWidget : public QOpenGLWidget, protected QOpenGLFunctions
 {
     Q_OBJECT
 
@@ -31,19 +30,6 @@ public:
     void setWaveformData(const std::vector<float> &data)
     {
         m_waveformData = data;
-
-        // Normalize data to [-1, 1]
-        float range = m_maxValue - m_minValue;
-        m_normalizedData.clear();
-        for (float val : m_waveformData) {
-            m_normalizedData.push_back((val - m_minValue) / range * 2.0f - 1.0f);
-        }
-
-        // print the first 10 items of the normalized data
-        // for (int i = 0; i < 10; i++) {
-        //     std::cout << m_normalizedData[i] << " ";
-        // }
-
         update(); // Trigger a repaint
     }
 
@@ -54,38 +40,11 @@ protected:
         std::cout << "OpenGL Version:" << reinterpret_cast<const char*>(glGetString(GL_VERSION));
         std::cout << "GLSL Version:" << reinterpret_cast<const char*>(glGetString(GL_SHADING_LANGUAGE_VERSION));
 
-        // Compile shaders
-        m_program = new QOpenGLShaderProgram(this);
-        m_program->addShaderFromSourceCode(QOpenGLShader::Vertex, R"(
-            #version 120
-            attribute vec2 position;
-            uniform mat4 projection;
-            void main() {
-                gl_Position = projection * vec4(position, 0.0, 1.0);
-            }
-        )");
-        m_program->addShaderFromSourceCode(QOpenGLShader::Fragment, R"(
-            #version 120
-            void main() {
-                gl_FragColor = vec4(0.0, 1.0, 0.0, 1.0);
-            }
-        )");
-        m_program->link();
-
-        // Prepare vertex buffer
-        m_vbo.create();
-        m_vbo.bind();
+        glClearColor(0.0f, 0.0f, 0.0f, 1.0f); // Black background
     }
 
     void resizeGL(int w, int h) override {
-        // Create orthographic projection matrix
-        QMatrix4x4 projection;
-        projection.ortho(0.0f, float(w), -1.0f, 1.0f, -1.0f, 1.0f);
-
-        // Set the projection matrix in the shader
-        m_program->bind();
-        m_program->setUniformValue("projection", projection);
-        m_program->release();
+        glViewport(0, 0, w, h);
     }
 
     void paintGL() override {
@@ -94,38 +53,18 @@ protected:
         if (m_waveformData.empty())
             return;
 
-        // Prepare vertex data
-        std::vector<float> vertices;
+        // Set up OpenGL rendering state
+        glColor3f(0.0f, 1.0f, 0.0f); // Green color for the waveform
+        glBegin(GL_LINE_STRIP);
         for (size_t i = 0; i < m_waveformData.size(); ++i) {
-            float x = float(i) / (m_waveformData.size() - 1) * width();
-            float y = (m_waveformData[i] - m_minValue) / (m_maxValue - m_minValue) * 2.0f - 1.0f;
-            vertices.push_back(x);
-            vertices.push_back(y);
+            float x = static_cast<float>(i) / (m_waveformData.size() - 1) * 2.0f - 1.0f; // Normalize to [-1, 1]
+            glVertex2f(x, m_waveformData[i]);
         }
-
-        // Upload vertex data to VBO
-        m_vbo.bind();
-        m_vbo.allocate(vertices.data(), static_cast<int>(vertices.size() * sizeof(float)));
-
-        // Render
-        m_program->bind();
-        glEnableVertexAttribArray(0);
-        glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(float), nullptr);
-
-        glDrawArrays(GL_LINE_STRIP, 0, static_cast<int>(vertices.size() / 2));
-
-        glDisableVertexAttribArray(0);
-        m_program->release();
-        m_vbo.release();
+        glEnd();
     }
 
 private:
-    QOpenGLShaderProgram *m_program = nullptr;
-    QOpenGLBuffer m_vbo { QOpenGLBuffer::VertexBuffer };
     std::vector<float> m_waveformData;
-    std::vector<float> m_normalizedData;
-    float m_minValue = -1.0f;
-    float m_maxValue = 1.0f;
 };
 
 //----------------- MainWindow -----------------
@@ -134,36 +73,44 @@ private:
 #include <QVBoxLayout>
 #include <QLabel>
 #include <QPushButton>
+#include <QMainWindow>
+
 // #include "waveform.h"
 #include "worker.h"
 
 
-class MainWindow : public QWidget {
+class MainWindow : public QMainWindow {
     Q_OBJECT
 
 public:
     int argc; char ** argv; // will receive args
 
     MainWindow(int argc, char **argv) : argc(argc), argv(argv) {
-        auto *layout = new QVBoxLayout(this);
+        // Create the central widget
+        auto *centralWidget = new QWidget(this);
+        setCentralWidget(centralWidget);
 
+        // Create and set a layout for the central widget
+        auto *layout = new QVBoxLayout(centralWidget);
+
+        // Add the waveform widget
         waveformWidget = new WaveformWidget(this);
-        waveformWidget->setMinimumHeight(50); // Set the minimum height to 50 pixels
-        waveformWidget->setMaximumHeight(100); // Allow resizing up to 100 pixels        
+        waveformWidget->setMinimumHeight(50); // Minimum height of 50 pixels
+        waveformWidget->setMaximumHeight(100); // Maximum height of 100 pixels
         layout->addWidget(waveformWidget);
-        // waveformWidget->show();
 
+        // Add the label
         label = new QLabel("whisper streaming", this);
         label->setWordWrap(true);
         label->setFixedWidth(500);
-
-        label->setMinimumHeight(50); // Set the minimum height to 50 pixels
-        label->setMaximumHeight(100); // Allow resizing up to 100 pixels
-        // auto *button = new QPushButton("Start", this);
+        label->setMinimumHeight(50); // Minimum height of 50 pixels
+        label->setMaximumHeight(100); // Maximum height of 100 pixels
         layout->addWidget(label);
-        // layout->addWidget(button);
 
-        // connect(button, &QPushButton::clicked, this, &MainWindow::startWorker);
+        // auto *waveformWidget = new WaveformWidget(this);
+        // setCentralWidget(waveformWidget);
+        // resize(800, 400);
+
         startWorker(); 
     }
 
