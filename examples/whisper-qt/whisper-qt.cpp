@@ -172,10 +172,11 @@ bool get_audio_chunk(const std::vector<float> &pcmf32_all, std::vector<float> &p
     return has_more_audio;
 }
 
-// fxl: may sleep 
+// fxl: new samples append to "pcmf32_all", and overwrite "pcmf32_new"
+// may sleep to wait for samples
 // how much audio --> controlled by step_ms. get new samples appended to "pcmf32_new" and "pcmf32_all"
-bool get_audio_chunk_from_mic(audio_async &audio, std::vector<float> &pcmf32_all, std::vector<float> &pcmf32_new, 
-    int64_t pcmf32_index, int step_ms, int sample_rate) {
+bool get_audio_chunk_from_mic(audio_async &audio, std::vector<float> &pcmf32_all, 
+    std::vector<float> &pcmf32_new, int64_t pcmf32_index, int step_ms, int sample_rate) {
     int64_t pcmf32_index_sample = (pcmf32_index * sample_rate) / 1000;
     int num_samples = (step_ms * sample_rate) / 1000;
     pcmf32_new.clear();
@@ -205,6 +206,7 @@ bool get_audio_chunk_from_mic(audio_async &audio, std::vector<float> &pcmf32_all
         std::this_thread::sleep_for(std::chrono::milliseconds(1));
     }
     pcmf32_all.insert(pcmf32_all.end(), pcmf32_tmp.begin(), pcmf32_tmp.end());
+    // fxl: NB pcmf32_new was cleared earlier in this func
     pcmf32_new.insert(pcmf32_new.end(), pcmf32_all.begin() + pcmf32_index_sample, pcmf32_all.begin() + pcmf32_index_sample + pcmf32_tmp.size());
 
     return has_more_audio;
@@ -497,6 +499,7 @@ int thread_main(int argc, char ** argv,
     // IO
     void (*callback_confirm_tokens)(std::vector<std::tuple<double, double, std::string>>&),
     void (*callback_update_unconfirmed)(std::vector<std::tuple<double, double, std::string>>&),
+    void (*callback_new_audio_chunk)(double start_ms, double end_ms, std::vector<float>&),
     // perf stats
     void (*update_avg_token_lat)(double),
     // status
@@ -648,8 +651,7 @@ int thread_main(int argc, char ** argv,
     const auto fname_inp = params.fname_inp[0];
     const auto fname_out = 0 < (int) params.fname_out.size() && !params.fname_out[0].empty() ? params.fname_out[0] : params.fname_inp[0];
 
-    // fxl: stored all audio since beginning 
-    std::vector<float> pcmf32_all;               // mono-channel F32 PCM
+    std::vector<float> pcmf32_all;               // mono-channel F32 PCM        fxl: stored all audio since beginning XXX can be a problem for long running
     std::vector<std::vector<float>> pcmf32s; // stereo-channel F32 PCM
 
     // if (!::read_wav(fname_inp, pcmf32_all, pcmf32s, false)) {
@@ -698,7 +700,7 @@ int thread_main(int argc, char ** argv,
     int64_t now = 0;
 
     // whisper_streaming OnlineASRProcessor related variables
-    std::vector<float> pcmf32_audio_buffer;
+    std::vector<float> pcmf32_audio_buffer; // fxl: the "running" audio buffer, also gets trimmed from time to time, cf chunk_comleted_segment
     HypothesisBuffer transcript_buffer; // fxl: also holds the "confirmed" transcript, which is retired later
     double buffer_time_offset = 0;
     std::vector<std::tuple<double, double, std::string>> committed; // fxl: whole transcript, accumulated 
@@ -754,14 +756,17 @@ int thread_main(int argc, char ** argv,
             pcmf32_index_end = ggml_time_us() / 1000.0 - start;     // fxl: in ms ...
             //is_running = get_audio_chunk(pcmf32_all, pcmf32_new, pcmf32_index, pcmf32_index_end - pcmf32_index, WHISPER_SAMPLE_RATE);
             is_running = get_audio_chunk_from_mic(audio, pcmf32_all, pcmf32_new, pcmf32_index, pcmf32_index_end - pcmf32_index, WHISPER_SAMPLE_RATE);
+            if (callback_new_audio_chunk)
+                callback_new_audio_chunk(pcmf32_index, pcmf32_index_end, pcmf32_new); // XXX check the timestamps -- are these correct???
+
             // update the start point for next audio segment
             pcmf32_index = pcmf32_index_end;
 
             // whisper_streaming online.insert_audio_chunk()        fxl: pcmf32_new -- the new audio chunk; "pcmf32" -- audio buf
             pcmf32_audio_buffer.insert(pcmf32_audio_buffer.end(), pcmf32_new.begin(), pcmf32_new.end());
-            pcmf32 = pcmf32_audio_buffer;   // fxl: copy?
-            //const int n_samples_new = pcmf32_new.size();
+            pcmf32 = pcmf32_audio_buffer;   // fxl: this actually makes a copy?
 
+            //const int n_samples_new = pcmf32_new.size();
             // take up to params.length_ms audio from previous iteration
             //const int n_samples_take = std::min((int) pcmf32_old.size(), std::max(0, n_samples_keep + n_samples_len - n_samples_new));
 
