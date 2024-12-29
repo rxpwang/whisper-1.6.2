@@ -506,7 +506,8 @@ bool restarting_check(  std::vector<float> &pcmf32_audio_buffer,
                         ) {
     // check if restarting is needed
     bool restarting_needed = false;
-    bool last_10s_no_vad = ::vad_simple(pcmf32_audio_buffer, WHISPER_SAMPLE_RATE, 10000, params.vad_thold, params.freq_thold, false);
+    std::vector<float> pcmf32_audio_buffer_tmp = pcmf32_audio_buffer;
+    bool last_10s_no_vad = ::vad_simple(pcmf32_audio_buffer_tmp, WHISPER_SAMPLE_RATE, 10000, params.vad_thold, params.freq_thold, false);
     if (last_10s_no_vad) { // no voice activity for the latest 10s
         printf("No voice activity for the latest 10s.\n");
         restarting_needed = true;

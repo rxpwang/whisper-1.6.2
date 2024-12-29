@@ -18,8 +18,9 @@ public:
         label->setFixedWidth(500);
 
         label->setMinimumHeight(50); // Set the minimum height to 50 pixels
-        label->setMaximumHeight(100); // Allow resizing up to 100 pixels
-
+        //label->setMaximumHeight(100); // Allow resizing up to 100 pixels
+        label->setMaximumHeight(QWIDGETSIZE_MAX); // Allow resizing up to the maximum height
+        
         // auto *button = new QPushButton("Start", this);
 
         layout->addWidget(label);
