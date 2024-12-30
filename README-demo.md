@@ -30,7 +30,11 @@ To run:
 ./run.sh
 ```
 
-https://github.com/user-attachments/assets/fa5a8b44-bbf4-4e70-813d-d77a62d65ad2
+
+https://github.com/user-attachments/assets/5563bd9f-a5f8-4b8a-b67d-40041ac2eb7f
+
+
+
 
 ## The Console Demo
 
