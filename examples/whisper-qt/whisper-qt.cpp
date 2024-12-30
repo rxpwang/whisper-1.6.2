@@ -483,6 +483,7 @@ std::tuple<double, double, std::string> to_flush(
     return std::make_tuple(beg, end, concatenated);
 }
 
+
 /* fxl: callbacks needed: 
     (input/output)
     - any token(s) "confirmed" --- incremental
@@ -533,11 +534,11 @@ int thread_main(int argc, char ** argv,
 
     // init audio
     audio_async audio(30000); // maximum 30s audio context
+    audio.on_new_samples = callback_new_audio_chunk; // pass through the callback
     if (!audio.init(params.capture_id, WHISPER_SAMPLE_RATE)) {
         fprintf(stderr, "%s: audio.init() failed!\n", __func__);
         return 1;
     }
-
     audio.resume();
 
     // whisper init
@@ -726,8 +727,6 @@ int thread_main(int argc, char ** argv,
                 //we revise it to get from pcmf32_all, also hold a pointer to keep record of the current processing audio
                 audio.get(params.step_ms, pcmf32_new);
                 
-
-                
                 if ((int) pcmf32_new.size() > 2*n_samples_step) {
                     fprintf(stderr, "\n\n%s: WARNING: cannot process audio fast enough, dropping audio ...\n\n", __func__);
                     audio.clear();
@@ -738,7 +737,6 @@ int thread_main(int argc, char ** argv,
                     audio.clear();
                     break;
                 }
-                
 
                 std::this_thread::sleep_for(std::chrono::milliseconds(1));
             }
@@ -756,8 +754,11 @@ int thread_main(int argc, char ** argv,
             pcmf32_index_end = ggml_time_us() / 1000.0 - start;     // fxl: in ms ...
             //is_running = get_audio_chunk(pcmf32_all, pcmf32_new, pcmf32_index, pcmf32_index_end - pcmf32_index, WHISPER_SAMPLE_RATE);
             is_running = get_audio_chunk_from_mic(audio, pcmf32_all, pcmf32_new, pcmf32_index, pcmf32_index_end - pcmf32_index, WHISPER_SAMPLE_RATE);
-            if (callback_new_audio_chunk)
-                callback_new_audio_chunk(pcmf32_index, pcmf32_index_end, pcmf32_new); // XXX check the timestamps -- are these correct???
+            
+            // too slow, as get_audio_chunk_from_mic() returns large chunk of audio (eg 3sec). not good
+            // for GUI visualization             
+            // if (callback_new_audio_chunk)
+            //     callback_new_audio_chunk(pcmf32_index, pcmf32_index_end, pcmf32_new); // XXX check the timestamps -- are these correct???
 
             // update the start point for next audio segment
             pcmf32_index = pcmf32_index_end;

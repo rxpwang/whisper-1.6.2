@@ -2,7 +2,6 @@
 
 audio_async::audio_async(int len_ms) {
     m_len_ms = len_ms;
-
     m_running = false;
 }
 
@@ -134,9 +133,18 @@ bool audio_async::clear() {
 }
 
 // callback to be called by SDL
+// fxl: "stream" seems to be in fp16 (despite of byte ptr); "len" is the number of bytes
 void audio_async::callback(uint8_t * stream, int len) {
     if (!m_running) {
         return;
+    }
+
+    if (on_new_samples) {  // by fxl: callback to post the new audio samples to the UI thread
+        std::vector<float> audio(reinterpret_cast<float*>(stream), reinterpret_cast<float*>(stream) + len / sizeof(float));
+        // std::vector<float> audio;
+        // audio.resize(len / sizeof(float));
+        // memcpy(audio.data(), stream, len);
+        on_new_samples(0,0,/*TBD*/audio);
     }
 
     size_t n_samples = len / sizeof(float);
@@ -148,7 +156,6 @@ void audio_async::callback(uint8_t * stream, int len) {
     }
 
     //fprintf(stderr, "%s: %zu samples, pos %zu, len %zu\n", __func__, n_samples, m_audio_pos, m_audio_len);
-
     {
         std::lock_guard<std::mutex> lock(m_mutex);
 
@@ -169,6 +176,7 @@ void audio_async::callback(uint8_t * stream, int len) {
     }
 }
 
+// fxl: retreives all accumulated audio samples from the circular buffer....
 void audio_async::get(int ms, std::vector<float> & result) {
     if (!m_dev_id_in) {
         fprintf(stderr, "%s: no audio device to get audio from!\n", __func__);

@@ -29,8 +29,21 @@ public:
 
     void setWaveformData(const std::vector<float> &data)
     {
-        m_waveformData = data;
-        update(); // Trigger a repaint
+#define MY_WHISPER_SAMPLE_RATE      16000
+#define DRAW_MOST_RECENT_SEC        10 
+#define MAX_WAVEFORM_SAMPLES        (MY_WHISPER_SAMPLE_RATE * DRAW_MOST_RECENT_SEC)
+        // m_waveformData = data;
+        // WHISPER_SAMPLE_RATE default 16K
+        const int redraw_every_ms = 100; 
+        const int redraw_every_samples = (redraw_every_ms * MY_WHISPER_SAMPLE_RATE) / 1000;
+        m_waveformData.insert(m_waveformData.end(), data.begin(), data.end());
+        n_undrawn_samples += data.size();
+        if (n_undrawn_samples > redraw_every_samples) {
+            if (m_waveformData.size() > MAX_WAVEFORM_SAMPLES)
+                m_waveformData.erase(m_waveformData.begin(), m_waveformData.begin() + m_waveformData.size() - MAX_WAVEFORM_SAMPLES);
+            update(); // Trigger a repaint
+            n_undrawn_samples = 0; 
+        }
     }
 
 protected:
@@ -65,6 +78,7 @@ protected:
 
 private:
     std::vector<float> m_waveformData;
+    int n_undrawn_samples = 0; // # of audio samples not yet drawn
 };
 
 //----------------- MainWindow -----------------
@@ -151,8 +165,13 @@ private slots:
     }
 
     void onNewAudioChunk(double start, double end, const std::vector<float> &data) {
-        // Do something with the new audio chunk
-        // std::cout << "New audio chunk received: " << start << " " << end << "size" << data.size() << std::endl;
+#if 0        
+        std::cout << "New audio chunk received: " << start << " " << end << "size" << data.size() << std::endl;
+        std::cout << "First 10 items of data: ";
+        for (size_t i = 0; i < std::min(data.size(), static_cast<size_t>(10)); ++i)
+            std::cout << data[i] << " ";
+        std::cout << std::endl;
+#endif
         waveformWidget->setWaveformData(data);  // will redraw
     }
 
