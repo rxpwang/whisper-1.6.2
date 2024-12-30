@@ -5,7 +5,8 @@
 TEMPLATE = app
 TARGET = whisper-qt
 INCLUDEPATH += .
-QT += widgets
+QT += widgets 
+QT += opengl openglwidgets
 
 # You can make your code fail to compile if you use deprecated APIs.
 # In order to do so, uncomment the following line.
@@ -14,9 +15,13 @@ QT += widgets
 # You can also select to disable deprecated APIs only up to a certain version of Qt.
 #DEFINES += QT_DISABLE_DEPRECATED_UP_TO=0x060000 # disables all APIs deprecated in Qt 6.0.0 and earlier
 
-# Input
+# compile as devbug
+CONFIG += debug
+QMAKE_CXXFLAGS_DEBUG += -O0 -g
 
+# Input
 HEADERS += worker.h
+#HEADERS += waveform.h
 HEADERS += mainwindow.h
 
 SOURCES += main.cpp

@@ -247,6 +247,7 @@
 #define __LONG_WIDTH__ 64
 #define __LP64__ 1
 #define __MACH__ 1
+#define __NO_INLINE__ 1
 #define __NO_MATH_ERRNO__ 1
 #define __OBJC_BOOL_IS_BOOL 1
 #define __OPENCL_MEMORY_SCOPE_ALL_SVM_DEVICES 3
@@ -254,7 +255,6 @@
 #define __OPENCL_MEMORY_SCOPE_SUB_GROUP 4
 #define __OPENCL_MEMORY_SCOPE_WORK_GROUP 1
 #define __OPENCL_MEMORY_SCOPE_WORK_ITEM 0
-#define __OPTIMIZE__ 1
 #define __ORDER_BIG_ENDIAN__ 4321
 #define __ORDER_LITTLE_ENDIAN__ 1234
 #define __ORDER_PDP_ENDIAN__ 3412

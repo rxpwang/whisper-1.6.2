@@ -31,6 +31,9 @@ public:
     // get audio data from the circular buffer
     void get(int ms, std::vector<float> & audio);
 
+    // call every time when new audio samples received via callback() above
+    void (*on_new_samples)(double start_ms, double end_ms, std::vector<float> & audio) = nullptr;
+
 private:
     SDL_AudioDeviceID m_dev_id_in = 0;
 

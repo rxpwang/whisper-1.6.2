@@ -1,18 +1,119 @@
+
+//----------------- waveform -----------------
+
+/* using openGL. macOS supports OpenGL up to 2.1 (deprecated, migrated to Metal rendering)
+    however we still use OpenGL for compatiblity
+    check: 
+    glxinfo|grep "OpenGL version"
+*/
+
+#include <QOpenGLWidget>
+#include <QOpenGLFunctions>
+// #include <QOpenGLShaderProgram>
+// #include <QOpenGLBuffer>
+
+#include <vector>
+#include <algorithm>
+#include <cmath>
+#include <iostream>
+
+class WaveformWidget : public QOpenGLWidget, protected QOpenGLFunctions
+{
+    Q_OBJECT
+
+public:
+    explicit WaveformWidget(QWidget *parent = nullptr)
+        : QOpenGLWidget(parent) {
+        setStyleSheet("background-color: lightblue;");
+    }
+
+    void setWaveformData(const std::vector<float> &data)
+    {
+#define MY_WHISPER_SAMPLE_RATE      16000
+#define DRAW_MOST_RECENT_SEC        10 
+#define MAX_WAVEFORM_SAMPLES        (MY_WHISPER_SAMPLE_RATE * DRAW_MOST_RECENT_SEC)
+        // m_waveformData = data;
+        // WHISPER_SAMPLE_RATE default 16K
+        const int redraw_every_ms = 100; 
+        const int redraw_every_samples = (redraw_every_ms * MY_WHISPER_SAMPLE_RATE) / 1000;
+        m_waveformData.insert(m_waveformData.end(), data.begin(), data.end());
+        n_undrawn_samples += data.size();
+        if (n_undrawn_samples > redraw_every_samples) {
+            if (m_waveformData.size() > MAX_WAVEFORM_SAMPLES)
+                m_waveformData.erase(m_waveformData.begin(), m_waveformData.begin() + m_waveformData.size() - MAX_WAVEFORM_SAMPLES);
+            update(); // Trigger a repaint
+            n_undrawn_samples = 0; 
+        }
+    }
+
+protected:
+    void initializeGL() override {
+        initializeOpenGLFunctions(); // fxl:will crash inside?
+
+        std::cout << "OpenGL Version:" << reinterpret_cast<const char*>(glGetString(GL_VERSION));
+        std::cout << "GLSL Version:" << reinterpret_cast<const char*>(glGetString(GL_SHADING_LANGUAGE_VERSION));
+
+        glClearColor(0.0f, 0.0f, 0.0f, 1.0f); // Black background
+    }
+
+    void resizeGL(int w, int h) override {
+        glViewport(0, 0, w, h);
+    }
+
+    void paintGL() override {
+        glClear(GL_COLOR_BUFFER_BIT);
+
+        if (m_waveformData.empty())
+            return;
+
+        // Set up OpenGL rendering state
+        glColor3f(0.0f, 1.0f, 0.0f); // Green color for the waveform
+        glBegin(GL_LINE_STRIP);
+        for (size_t i = 0; i < m_waveformData.size(); ++i) {
+            float x = static_cast<float>(i) / (m_waveformData.size() - 1) * 2.0f - 1.0f; // Normalize to [-1, 1]
+            glVertex2f(x, m_waveformData[i]);
+        }
+        glEnd();
+    }
+
+private:
+    std::vector<float> m_waveformData;
+    int n_undrawn_samples = 0; // # of audio samples not yet drawn
+};
+
+//----------------- MainWindow -----------------
+
 #include <QWidget>
 #include <QVBoxLayout>
 #include <QLabel>
 #include <QPushButton>
+#include <QMainWindow>
+
+// #include "waveform.h"
 #include "worker.h"
 
-class MainWindow : public QWidget {
+
+class MainWindow : public QMainWindow {
     Q_OBJECT
 
 public:
     int argc; char ** argv; // will receive args
 
     MainWindow(int argc, char **argv) : argc(argc), argv(argv) {
-        auto *layout = new QVBoxLayout(this);
+        // Create the central widget
+        auto *centralWidget = new QWidget(this);
+        setCentralWidget(centralWidget);
 
+        // Create and set a layout for the central widget
+        auto *layout = new QVBoxLayout(centralWidget);
+
+        // Add the waveform widget
+        waveformWidget = new WaveformWidget(this);
+        waveformWidget->setMinimumHeight(50); // Minimum height of 50 pixels
+        waveformWidget->setMaximumHeight(100); // Maximum height of 100 pixels
+        layout->addWidget(waveformWidget);
+
+        // Add the label
         label = new QLabel("whisper streaming", this);
         label->setWordWrap(true);
         label->setFixedWidth(500);
@@ -24,9 +125,11 @@ public:
         // auto *button = new QPushButton("Start", this);
 
         layout->addWidget(label);
-        // layout->addWidget(button);
 
-        // connect(button, &QPushButton::clicked, this, &MainWindow::startWorker);
+        // auto *waveformWidget = new WaveformWidget(this);
+        // setCentralWidget(waveformWidget);
+        // resize(800, 400);
+
         startWorker(); 
     }
 
@@ -46,6 +149,7 @@ public:
 
         connect(worker, &Worker::signal_confirm_tokens, this, &MainWindow::onConfirmedTokens);
         connect(worker, &Worker::signal_unconfirmed_tokens, this, &MainWindow::onUnconfirmedTokens);
+        connect(worker, &Worker::signal_new_audio_chunck, this, &MainWindow::onNewAudioChunk);
 
         workerThread->start();
     }
@@ -63,6 +167,17 @@ private slots:
     void onUnconfirmedTokens(const std::vector<std::tuple<double, double, std::string>> &tokens) {
         unconfirmed_tokens = tokens;
         render_text();
+    }
+
+    void onNewAudioChunk(double start, double end, const std::vector<float> &data) {
+#if 0        
+        std::cout << "New audio chunk received: " << start << " " << end << "size" << data.size() << std::endl;
+        std::cout << "First 10 items of data: ";
+        for (size_t i = 0; i < std::min(data.size(), static_cast<size_t>(10)); ++i)
+            std::cout << data[i] << " ";
+        std::cout << std::endl;
+#endif
+        waveformWidget->setWaveformData(data);  // will redraw
     }
 
 private:
@@ -95,6 +210,11 @@ private:
     }
 
     QLabel *label;
+    WaveformWidget *waveformWidget;
+
     std::vector<std::tuple<double, double, std::string>> all_confirmed_tokens;
     std::vector<std::tuple<double, double, std::string>> unconfirmed_tokens;
+    // fxl: audio_data. the UI thread trim it as needed
+    std::vector<float> audio_data;  
+    double start_time, end_time; 
 };
