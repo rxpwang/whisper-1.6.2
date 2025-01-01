@@ -564,6 +564,8 @@ int thread_main(int argc, char ** argv,
     void (*callback_confirm_tokens)(std::vector<std::tuple<double, double, std::string>>&),
     void (*callback_update_unconfirmed)(std::vector<std::tuple<double, double, std::string>>&),
     void (*callback_new_audio_chunk)(double start_ms, double end_ms, std::vector<float>&),
+    void (*callback_audio_buffer_info)(double start, double end),
+    void (*callback_whisperflow_restarting)(bool need_restarting),
     // perf stats
     void (*update_avg_token_lat)(double),
     // status
@@ -769,7 +771,7 @@ int thread_main(int argc, char ** argv,
     double buffer_time_offset = 0;
     std::vector<std::tuple<double, double, std::string>> committed; // fxl: whole transcript, accumulated
     std::vector<std::tuple<double, double, std::string>> committed_all; // fxl: whole transcript, accumulated
-
+    bool need_restarting = false;
     // whisper_streaming begin_flag. to make the first segment of the audio at least a certain length
     int begin_flag = 0;
 
@@ -818,7 +820,9 @@ int thread_main(int argc, char ** argv,
             pcmf32_index_end = ggml_time_us() / 1000.0 - start;     // fxl: in ms ...
             //is_running = get_audio_chunk(pcmf32_all, pcmf32_new, pcmf32_index, pcmf32_index_end - pcmf32_index, WHISPER_SAMPLE_RATE);
             is_running = get_audio_chunk_from_mic(audio, pcmf32_all, pcmf32_new, pcmf32_index, pcmf32_index_end - pcmf32_index, WHISPER_SAMPLE_RATE);
-            
+            if (callback_audio_buffer_info) {
+                callback_audio_buffer_info(buffer_time_offset, pcmf32_index_end);
+            }
             // too slow, as get_audio_chunk_from_mic() returns large chunk of audio (eg 3sec). not good
             // for GUI visualization             
             // if (callback_new_audio_chunk)
@@ -1099,10 +1103,10 @@ int thread_main(int argc, char ** argv,
         // silence for 10s
         // audio buffer reaches 27 s
         // if restart is needed, many relevent variable will be reinitiate in the function.
-        bool need_restarting = restarting_check(pcmf32_audio_buffer, pcmf32, pcmf32_old, pcmf32_new, prompt_tokens, pcmf32_all, pcmf32s, pcmf32_index, start, pcmf32_index_end, now, transcript_buffer, buffer_time_offset, committed, committed_all, params);
-        // if (need_restarting == true) {
-        //     continue;
-        // }    
+        need_restarting = restarting_check(pcmf32_audio_buffer, pcmf32, pcmf32_old, pcmf32_new, prompt_tokens, pcmf32_all, pcmf32s, pcmf32_index, start, pcmf32_index_end, now, transcript_buffer, buffer_time_offset, committed, committed_all, params);
+        if (callback_whisperflow_restarting) {
+            callback_whisperflow_restarting(need_restarting);
+        }
     }
 
     //audio.pause();

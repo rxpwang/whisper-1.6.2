@@ -50,6 +50,23 @@ public:
         }
     }
 
+    void UpdateAudioBufferInfo(double start, double end) {
+        audio_buffer_start = start;
+        audio_buffer_end = end / 1000;
+        update();
+    }
+
+    void WhisperflowRestarting(bool need_restarting) {
+        if (need_restarting) {
+            current_wave_start = 0;
+            current_wave_end = 0;
+            audio_buffer_start = 0;
+            audio_buffer_end = 0;
+            m_waveformData.clear();
+            update();
+        }
+    }
+
 protected:
     void initializeGL() override {
         initializeOpenGLFunctions(); // fxl:will crash inside?
@@ -75,6 +92,14 @@ protected:
         glBegin(GL_LINE_STRIP);
         for (size_t i = 0; i < m_waveformData.size(); ++i) {
             float x = static_cast<float>(i) / (m_waveformData.size() - 1) * 2.0f - 1.0f; // Normalize to [-1, 1]
+            // drawing the audio buffer part with different color
+            int audio_buffer_start_sample = ((audio_buffer_start - current_wave_start) * MY_WHISPER_SAMPLE_RATE);
+            int audio_buffer_end_sample = ((audio_buffer_end - current_wave_start) * MY_WHISPER_SAMPLE_RATE);
+            if (i >= audio_buffer_start_sample && i <= audio_buffer_end_sample) {
+                glColor3f(1.0f, 0.84f, 0.0f); // Red color for the audio buffer
+            } else {
+                glColor3f(0.0f, 1.0f, 0.0f); // Green color for the waveform
+            }
             glVertex2f(x, m_waveformData[i]);
         }
         glEnd();
@@ -94,6 +119,13 @@ protected:
         // painter.drawText(width() - 30, height() / 2, endText);
         painter.drawText(width() - 30, height() / 4, endText);
 
+        QString audioBufferStartText = QString::number(audio_buffer_start);
+        QString audioBufferEndText = QString::number(audio_buffer_end);
+        // calculate the audio buffer start and end text position
+        float startpos = 3 + ((audio_buffer_start-current_wave_start) / (current_wave_end-current_wave_start)) * width();
+        float endpos = ((audio_buffer_end-current_wave_start) / (current_wave_end-current_wave_start)) * width() - 30;
+        painter.drawText(startpos, height() * 5 / 6, audioBufferStartText);
+        painter.drawText(endpos, height() * 5 / 6, audioBufferEndText);
         painter.end();
     }
 
@@ -102,6 +134,8 @@ private:
     int n_undrawn_samples = 0; // # of audio samples not yet drawn
     float current_wave_start = 0; // the start index of the current waveform
     float current_wave_end = 0; // the end index of the current waveform
+    float audio_buffer_start = 0; // the start index of the audio buffer
+    float audio_buffer_end = 0; // the end index of the audio buffer
 };
 
 //----------------- MainWindow -----------------
@@ -173,6 +207,8 @@ public:
         connect(worker, &Worker::signal_confirm_tokens, this, &MainWindow::onConfirmedTokens);
         connect(worker, &Worker::signal_unconfirmed_tokens, this, &MainWindow::onUnconfirmedTokens);
         connect(worker, &Worker::signal_new_audio_chunck, this, &MainWindow::onNewAudioChunk);
+        connect(worker, &Worker::signal_audio_buffer_info, this, &MainWindow::onAudioBufferInfo);
+        connect(worker, &Worker::signal_whisperflow_restarting, this, &MainWindow::onWhisperflowRestarting);
 
         workerThread->start();
     }
@@ -201,6 +237,16 @@ private slots:
         std::cout << std::endl;
 #endif
         waveformWidget->setWaveformData(data);  // will redraw
+    }
+
+    void onAudioBufferInfo(double start, double end) {
+        std::cout << "Audio buffer info: " << start << " " << end << std::endl;
+        waveformWidget->UpdateAudioBufferInfo(start, end);
+    }
+
+    void onWhisperflowRestarting(bool need_restarting) {
+        std::cout << "Whisperflow restarting: " << need_restarting << std::endl;
+        waveformWidget->WhisperflowRestarting(need_restarting);
     }
 
 private:
