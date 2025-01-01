@@ -11,6 +11,7 @@
 #include <QOpenGLFunctions>
 // #include <QOpenGLShaderProgram>
 // #include <QOpenGLBuffer>
+#include <QPainter>
 
 #include <vector>
 #include <algorithm>
@@ -30,7 +31,7 @@ public:
     void setWaveformData(const std::vector<float> &data)
     {
 #define MY_WHISPER_SAMPLE_RATE      16000
-#define DRAW_MOST_RECENT_SEC        10 
+#define DRAW_MOST_RECENT_SEC        30
 #define MAX_WAVEFORM_SAMPLES        (MY_WHISPER_SAMPLE_RATE * DRAW_MOST_RECENT_SEC)
         // m_waveformData = data;
         // WHISPER_SAMPLE_RATE default 16K
@@ -38,9 +39,12 @@ public:
         const int redraw_every_samples = (redraw_every_ms * MY_WHISPER_SAMPLE_RATE) / 1000;
         m_waveformData.insert(m_waveformData.end(), data.begin(), data.end());
         n_undrawn_samples += data.size();
+        current_wave_end += (data.size() / float(MY_WHISPER_SAMPLE_RATE));
         if (n_undrawn_samples > redraw_every_samples) {
-            if (m_waveformData.size() > MAX_WAVEFORM_SAMPLES)
+            if (m_waveformData.size() > MAX_WAVEFORM_SAMPLES){
+                current_wave_start += ((m_waveformData.size() - MAX_WAVEFORM_SAMPLES) / float(MY_WHISPER_SAMPLE_RATE));
                 m_waveformData.erase(m_waveformData.begin(), m_waveformData.begin() + m_waveformData.size() - MAX_WAVEFORM_SAMPLES);
+            }
             update(); // Trigger a repaint
             n_undrawn_samples = 0; 
         }
@@ -74,11 +78,30 @@ protected:
             glVertex2f(x, m_waveformData[i]);
         }
         glEnd();
+
+        // Render start and end indices with QPainter
+        QPainter painter(this);
+        painter.setPen(Qt::white);  // Text color
+        painter.setFont(QFont("Arial", 12));  // Font and size
+
+        // Draw the start index (left side)
+        QString startText = QString::number(current_wave_start);  // Starting index
+        //painter.drawText(10, height() / 2, startText);
+        painter.drawText(3, height() / 4, startText);
+
+        // Draw the end index (right side)
+        QString endText = QString::number(current_wave_end);  // Ending index
+        // painter.drawText(width() - 30, height() / 2, endText);
+        painter.drawText(width() - 30, height() / 4, endText);
+
+        painter.end();
     }
 
 private:
     std::vector<float> m_waveformData;
     int n_undrawn_samples = 0; // # of audio samples not yet drawn
+    float current_wave_start = 0; // the start index of the current waveform
+    float current_wave_end = 0; // the end index of the current waveform
 };
 
 //----------------- MainWindow -----------------
