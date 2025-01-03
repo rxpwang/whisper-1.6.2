@@ -67,6 +67,16 @@ public:
         }
     }
 
+    void UpdateConfirmedTokens(const std::vector<std::tuple<double, double, std::string>> &tokens) {
+        all_confirmed_tokens = tokens;
+        update();
+    }
+
+    void UpdateUnconfirmedTokens(const std::vector<std::tuple<double, double, std::string>> &tokens) {
+        unconfirmed_tokens = tokens;
+        update();
+    }
+
 protected:
     void initializeGL() override {
         initializeOpenGLFunctions(); // fxl:will crash inside?
@@ -126,6 +136,34 @@ protected:
         float endpos = ((audio_buffer_end-current_wave_start) / (current_wave_end-current_wave_start)) * width() - 30;
         painter.drawText(startpos, height() * 5 / 6, audioBufferStartText);
         painter.drawText(endpos, height() * 5 / 6, audioBufferEndText);
+        //painter.end();
+        // Draw confirmed tokens aligned with waveform
+        painter.setPen(Qt::green);
+        for (const auto& token : all_confirmed_tokens) {
+            double start_time_tmp, end_time_tmp;
+            std::string transcript;
+            std::tie(start_time_tmp, end_time_tmp, transcript) = token;
+            double token_time = (start_time_tmp + end_time_tmp) / 2;
+
+            if (start_time_tmp >= current_wave_start && end_time_tmp <= current_wave_end) {
+                float xpos = 3 + ((token_time - current_wave_start) / (current_wave_end - current_wave_start)) * width();
+                painter.drawText(xpos, height() / 2 + 20, QString::fromStdString(transcript));
+            }
+        }
+
+        // Draw unconfirmed tokens
+        painter.setPen(Qt::gray);
+        for (const auto& token : unconfirmed_tokens) {
+            double start_time_tmp, end_time_tmp;
+            std::string transcript;
+            std::tie(start_time_tmp, end_time_tmp, transcript) = token;
+            double token_time = (start_time_tmp + end_time_tmp) / 2;
+
+            if (start_time_tmp >= current_wave_start && end_time_tmp <= current_wave_end) {
+                float xpos = 3 + ((token_time - current_wave_start) / (current_wave_end - current_wave_start)) * width();
+                painter.drawText(xpos, height() / 2 + 20, QString::fromStdString(transcript));
+            }
+        }
         painter.end();
     }
 
@@ -136,6 +174,8 @@ private:
     float current_wave_end = 0; // the end index of the current waveform
     float audio_buffer_start = 0; // the start index of the audio buffer
     float audio_buffer_end = 0; // the end index of the audio buffer
+    std::vector<std::tuple<double, double, std::string>> all_confirmed_tokens;
+    std::vector<std::tuple<double, double, std::string>> unconfirmed_tokens;
 };
 
 //----------------- MainWindow -----------------
@@ -220,12 +260,16 @@ private slots:
 
     void onConfirmedTokens(const std::vector<std::tuple<double, double, std::string>> &tokens) {
         all_confirmed_tokens.insert(all_confirmed_tokens.end(), tokens.begin(), tokens.end());        
-        render_text();
+        //render_text();
+        //render_text_aligned();
+        waveformWidget->UpdateConfirmedTokens(all_confirmed_tokens);
     }
 
     void onUnconfirmedTokens(const std::vector<std::tuple<double, double, std::string>> &tokens) {
         unconfirmed_tokens = tokens;
-        render_text();
+        //render_text();
+        //render_text_aligned();
+        waveformWidget->UpdateUnconfirmedTokens(unconfirmed_tokens);
     }
 
     void onNewAudioChunk(double start, double end, const std::vector<float> &data) {
@@ -277,6 +321,46 @@ private:
 
         label->setText(text);
     }
+
+    // void render_text_aligned(void){
+    //     // render the confirmed tokens, aligned with the waveform
+    //     QString text = "<font color='green'><b>"; // HTML format
+    //     // Render start and end indices with QPainter
+    //     QPainter painter(this);
+    //     // render the confirmed tokens
+    //     painter.setPen(Qt::green);  // Text color
+    //     painter.setFont(QFont("Arial", 12));  // Font and size
+    //     for (const auto& token : all_confirmed_tokens) {
+    //         double start_time_tmp, end_time_tmp;
+    //         std::string transcript;
+    //         std::tie(start_time_tmp, end_time_tmp, transcript) = token;
+    //         double token_time = (start_time_tmp + end_time_tmp) / 2;
+    //         // check if the token is in the current wave
+    //         if (start_time_tmp < current_wave_start || end_time_tmp > current_wave_end) {
+    //             continue;
+    //         }
+    //         // calculate the position of the token
+    //         float startpos = 3 + ((token_time-current_wave_start) / (current_wave_end-current_wave_start)) * width();
+    //         painter.drawText(startpos, height() / 2, QString::fromStdString(transcript));
+    //     }
+    //     // render the unconfirmed tokens
+    //     painter.setPen(Qt::gray);  // Text color
+    //     for (const auto& token : unconfirmed_tokens) {
+    //         double start_time_tmp, end_time_tmp;
+    //         std::string transcript;
+    //         std::tie(start_time_tmp, end_time_tmp, transcript) = token;
+    //         double token_time = (start_time_tmp + end_time_tmp) / 2;
+    //         // check if the token is in the current wave
+    //         if (start_time_tmp < current_wave_start || end_time_tmp > current_wave_end) {
+    //             continue;
+    //         }
+    //         // calculate the position of the token
+    //         float startpos = 3 + ((token_time-current_wave_start) / (current_wave_end-current_wave_start)) * width();
+    //         painter.drawText(startpos, height() / 2, QString::fromStdString(transcript));
+    //     }
+    //     painter.end();
+
+    // }
 
     QLabel *label;
     WaveformWidget *waveformWidget;
