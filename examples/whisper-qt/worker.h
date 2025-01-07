@@ -63,6 +63,10 @@ private:
         emit signal_whisperflow_restarting(need_restarting);
     }
 
+    void token_latency_info(std::vector<std::tuple<double, double, std::string, double>>& latency_record) {
+        emit signal_token_latency_info(latency_record);
+    }
+
     /////////////////
     // callback wrappers, must be static 
     static void confirm_tokens_callback(std::vector<std::tuple<double, double, std::string>>& tokens) {
@@ -80,6 +84,9 @@ private:
     static void whisperflow_restarting_callback(bool need_restarting) {
         instance->whisperflow_restarting(need_restarting);
     }
+    static void token_latency_info_callback(std::vector<std::tuple<double, double, std::string, double>>& latency_record) {
+        instance->token_latency_info(latency_record);
+    }
 
 public slots:
     // thread main body 
@@ -91,6 +98,7 @@ public slots:
             new_audio_chunk_callback,
             audio_buffer_info_callback,
             whisperflow_restarting_callback,
+            token_latency_info_callback,
             // perf stats
             NULL, // TBD
             // status
@@ -107,6 +115,7 @@ signals:
     void signal_new_audio_chunck(double start, double end, const std::vector<float>&); // Signal to update audio chunk
     void signal_audio_buffer_info(double start, double end); // Signal to update audio buffer info
     void signal_whisperflow_restarting(bool need_restarting); // Signal to restart the process
+    void signal_token_latency_info(const std::vector<std::tuple<double, double, std::string, double>>&); // Signal to update token latency
 };
 
 #endif // WORKER_H

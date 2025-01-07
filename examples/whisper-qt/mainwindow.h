@@ -249,6 +249,7 @@ public:
         connect(worker, &Worker::signal_new_audio_chunck, this, &MainWindow::onNewAudioChunk);
         connect(worker, &Worker::signal_audio_buffer_info, this, &MainWindow::onAudioBufferInfo);
         connect(worker, &Worker::signal_whisperflow_restarting, this, &MainWindow::onWhisperflowRestarting);
+        connect(worker, &Worker::signal_token_latency_info, this, &MainWindow::onTokenLatencyInfo);
 
         workerThread->start();
     }
@@ -260,14 +261,14 @@ private slots:
 
     void onConfirmedTokens(const std::vector<std::tuple<double, double, std::string>> &tokens) {
         all_confirmed_tokens.insert(all_confirmed_tokens.end(), tokens.begin(), tokens.end());        
-        //render_text();
+        render_text();
         //render_text_aligned();
         waveformWidget->UpdateConfirmedTokens(all_confirmed_tokens);
     }
 
     void onUnconfirmedTokens(const std::vector<std::tuple<double, double, std::string>> &tokens) {
         unconfirmed_tokens = tokens;
-        //render_text();
+        render_text();
         //render_text_aligned();
         waveformWidget->UpdateUnconfirmedTokens(unconfirmed_tokens);
     }
@@ -293,6 +294,21 @@ private slots:
         waveformWidget->WhisperflowRestarting(need_restarting);
     }
 
+    void onTokenLatencyInfo(const std::vector<std::tuple<double, double, std::string, double>> &latency_record) {
+        //std::cout << "Token latency info: " << std::endl;
+        double total_latency = 0;
+        for (const auto &entry : latency_record) {
+            double start_time, end_time, latency;
+            std::string transcript;
+            std::tie(start_time, end_time, transcript, latency) = entry;
+            // std::cout << "Start Time: " << start_time << ", End Time: " << end_time
+            //           << ", Transcript: " << transcript << ", Latency: " << latency << std::endl;
+            total_latency += latency;
+        }
+        avg_token_latency = latency_record.empty() ? 0 : total_latency / latency_record.size();
+        render_text();
+    }
+
 private:
     void render_text(void) {
         // render the confirmed tokens (only the last N tokens)
@@ -316,6 +332,10 @@ private:
             text += QString::fromStdString(transcript) + " ";
         }
         text += "</font>";
+
+        // Append average latency in a new line
+        text += QString("<br><font color='blue'>Average Latency: %1 s</font>")
+                .arg(QString::number(avg_token_latency, 'f', 2));
 
         std::cout << text.toStdString() << std::endl;
 
@@ -370,4 +390,5 @@ private:
     // fxl: audio_data. the UI thread trim it as needed
     std::vector<float> audio_data;  
     double start_time, end_time; 
+    double avg_token_latency = 0;
 };

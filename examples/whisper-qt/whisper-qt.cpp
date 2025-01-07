@@ -566,6 +566,7 @@ int thread_main(int argc, char ** argv,
     void (*callback_new_audio_chunk)(double start_ms, double end_ms, std::vector<float>&),
     void (*callback_audio_buffer_info)(double start, double end),
     void (*callback_whisperflow_restarting)(bool need_restarting),
+    void (*callback_token_latency_info)(std::vector<std::tuple<double, double, std::string, double>>&),
     // perf stats
     void (*update_avg_token_lat)(double),
     // status
@@ -989,7 +990,7 @@ int thread_main(int argc, char ** argv,
                 double latency = step_end - end_time;
                 latency_record.push_back(std::make_tuple(start_time, end_time, transcript, latency));
             }
-             
+            callback_token_latency_info(latency_record);
             // whisper_streaming audio_buffer management
             int64_t s = 15; // tentative buffer_trimming_sec set to be 15s
             // get the end time of each segments for chunk_completed_segment function
