@@ -147,7 +147,13 @@ protected:
 
             if (start_time_tmp >= current_wave_start && end_time_tmp <= current_wave_end) {
                 float xpos = 3 + ((token_time - current_wave_start) / (current_wave_end - current_wave_start)) * width();
-                painter.drawText(xpos, height() / 2 + 20, QString::fromStdString(transcript));
+                //painter.drawText(xpos, height() / 2 + 20, QString::fromStdString(transcript));
+                float ypos = height() / 2 + 10;
+                painter.save();
+                painter.translate(xpos, ypos);
+                painter.rotate(60);
+                painter.drawText(0, 0, QString::fromStdString(transcript));
+                painter.restore();
             }
         }
 
@@ -161,7 +167,13 @@ protected:
 
             if (start_time_tmp >= current_wave_start && end_time_tmp <= current_wave_end) {
                 float xpos = 3 + ((token_time - current_wave_start) / (current_wave_end - current_wave_start)) * width();
-                painter.drawText(xpos, height() / 2 + 20, QString::fromStdString(transcript));
+                //painter.drawText(xpos, height() / 2 + 20, QString::fromStdString(transcript));
+                float ypos = height() / 2 + 10;
+                painter.save();
+                painter.translate(xpos, ypos);
+                painter.rotate(60);
+                painter.drawText(0, 0, QString::fromStdString(transcript));
+                painter.restore();
             }
         }
         painter.end();
@@ -213,7 +225,9 @@ public:
         // Add the label
         label = new QLabel("whisper streaming", this);
         label->setWordWrap(true);
-        label->setFixedWidth(500);
+        //label->setFixedWidth(500);
+        label->setMinimumWidth(50);
+        label->setMaximumWidth(QWIDGETSIZE_MAX);
 
         label->setMinimumHeight(50); // Set the minimum height to 50 pixels
         //label->setMaximumHeight(100); // Allow resizing up to 100 pixels
