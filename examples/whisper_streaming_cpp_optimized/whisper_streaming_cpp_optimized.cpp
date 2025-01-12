@@ -16,7 +16,124 @@
 #include <vector>
 #include <fstream>
 #include <cstring>
+#include <portaudio.h>
+#include <iostream>
+#include <mutex>
 
+
+class AudioStreamer {
+public:
+    AudioStreamer() : isStreaming(true) {}
+
+    // Initialize PortAudio and start the stream
+    bool start() {
+        PaError err = Pa_Initialize();
+        if (err != paNoError) {
+            std::cerr << "PortAudio error: " << Pa_GetErrorText(err) << std::endl;
+            return false;
+        }
+
+        err = Pa_OpenDefaultStream(&stream,
+                                   1,                // Input channels (microphone)
+                                   0,                // Output channels
+                                   paFloat32,        // Sample format
+                                   WHISPER_SAMPLE_RATE,      // Sample rate
+                                   64,// Frames per buffer
+                                   audioCallback,    // Callback function
+                                   this);            // User data (pass this object)
+
+        if (err != paNoError) {
+            std::cerr << "PortAudio error: " << Pa_GetErrorText(err) << std::endl;
+            Pa_Terminate();
+            return false;
+        }
+
+        err = Pa_StartStream(stream);
+        if (err != paNoError) {
+            std::cerr << "PortAudio error: " << Pa_GetErrorText(err) << std::endl;
+            Pa_CloseStream(stream);
+            Pa_Terminate();
+            return false;
+        }
+
+        // Start processing thread
+        //processingThread = std::thread(&AudioStreamer::processAudioData, this);
+        return true;
+    }
+
+    // Stop the stream and clean up
+    void stop() {
+        isStreaming = false;
+
+        // Join the processing thread
+        if (processingThread.joinable()) {
+            processingThread.join();
+        }
+
+        Pa_StopStream(stream);
+        Pa_CloseStream(stream);
+        Pa_Terminate();
+    }
+
+    // Get audio data from the audiobuffer
+    std::vector<float> getAudioData() {
+        std::lock_guard<std::mutex> lock(bufferMutex);
+        std::vector<float> data = audioBuffer;
+        //audioBuffer.clear();
+        return data;
+    }
+
+    // clear audio buffer
+    void clearAudioBuffer() {
+        std::lock_guard<std::mutex> lock(bufferMutex);
+        audioBuffer.clear();
+    }
+
+private:
+    PaStream *stream;
+    std::vector<float> audioBuffer;
+    std::mutex bufferMutex;
+    bool isStreaming;
+    std::thread processingThread;
+
+    // Callback function
+    static int audioCallback(const void *inputBuffer, void *outputBuffer,
+                             unsigned long framesPerBuffer,
+                             const PaStreamCallbackTimeInfo *timeInfo,
+                             PaStreamCallbackFlags statusFlags,
+                             void *userData) {
+        auto *self = static_cast<AudioStreamer *>(userData); // Cast userData to our class
+        self->captureAudio(inputBuffer, framesPerBuffer);
+        return paContinue; // Continue streaming
+    }
+
+    // Capture audio data from the input buffer
+    void captureAudio(const void *inputBuffer, unsigned long framesPerBuffer) {
+        if (inputBuffer) {
+            const float *input = static_cast<const float *>(inputBuffer);
+
+            std::lock_guard<std::mutex> lock(bufferMutex);
+            audioBuffer.insert(audioBuffer.end(), input, input + framesPerBuffer);
+        }
+    }
+
+    // Process audio data in real time
+    void processAudioData() {
+        while (isStreaming) {
+            {
+                std::lock_guard<std::mutex> lock(bufferMutex);
+                if (!audioBuffer.empty()) {
+                    // Process or analyze the audio buffer
+                    std::cout << "Processing " << audioBuffer.size() << " samples." << std::endl;
+
+                    // Clear the buffer after processing (optional)
+                    audioBuffer.clear();
+                }
+            }
+            std::this_thread::sleep_for(std::chrono::milliseconds(100)); // Avoid busy waiting
+        }
+    }
+};
 
 // command-line parameters
 struct whisper_params {
@@ -171,7 +288,7 @@ bool get_audio_chunk(const std::vector<float> &pcmf32_all, std::vector<float> &p
     return has_more_audio;
 }
 
-bool get_audio_chunk_from_mic(audio_async &audio, std::vector<float> &pcmf32_all, std::vector<float> &pcmf32_new, int64_t pcmf32_index, int step_ms, int sample_rate) {
+bool get_audio_chunk_from_mic(AudioStreamer &streamer, std::vector<float> &pcmf32_all, std::vector<float> &pcmf32_new, int64_t pcmf32_index, int step_ms, int sample_rate) {
     int64_t pcmf32_index_sample = (pcmf32_index * sample_rate) / 1000;
     int num_samples = (step_ms * sample_rate) / 1000;
     pcmf32_new.clear();
@@ -180,10 +297,12 @@ bool get_audio_chunk_from_mic(audio_async &audio, std::vector<float> &pcmf32_all
     std::vector<float> pcmf32_tmp;
     int count = 0;
     while(true) {
-        audio.get(step_ms, pcmf32_tmp);
+        //audio.get(step_ms, pcmf32_tmp);
+        pcmf32_tmp = streamer.getAudioData();
         count++;
         if ((int) pcmf32_tmp.size() >= num_samples) {
-            audio.clear();
+            //audio.clear();
+            streamer.clearAudioBuffer();
             break;
         }
         // print current pcmf32_tmp length in seconds
@@ -495,13 +614,19 @@ int main(int argc, char ** argv) {
     params.max_tokens     = 0;
 
     // init audio
-    audio_async audio(30000); // maximum 30s audio context
-    if (!audio.init(params.capture_id, WHISPER_SAMPLE_RATE)) {
-        fprintf(stderr, "%s: audio.init() failed!\n", __func__);
+    // audio_async audio(30000); // maximum 30s audio context
+    // if (!audio.init(params.capture_id, WHISPER_SAMPLE_RATE)) {
+    //     fprintf(stderr, "%s: audio.init() failed!\n", __func__);
+    //     return 1;
+    // }
+
+    // audio.resume();
+    AudioStreamer streamer;
+
+    if (!streamer.start()) {
+        std::cerr << "Failed to start audio streamer." << std::endl;
         return 1;
     }
-
-    audio.resume();
 
     // whisper init
     if (params.language != "auto" && whisper_lang_id(params.language.c_str()) == -1){
@@ -723,7 +848,7 @@ int main(int argc, char ** argv) {
             //is_running = get_audio_chunk(pcmf32_all, pcmf32_new, pcmf32_index, pcmf32_index_end - pcmf32_index, WHISPER_SAMPLE_RATE);
             // print new audio chunk length
             fprintf(stderr, "New audio chunk length: %f\n", (pcmf32_index_end - pcmf32_index)/1000.0);
-            is_running = get_audio_chunk_from_mic(audio, pcmf32_all, pcmf32_new, pcmf32_index, pcmf32_index_end - pcmf32_index, WHISPER_SAMPLE_RATE);
+            is_running = get_audio_chunk_from_mic(streamer, pcmf32_all, pcmf32_new, pcmf32_index, pcmf32_index_end - pcmf32_index, WHISPER_SAMPLE_RATE);
             int64_t pcmf32_index_tmp = ggml_time_us() / 1000.0 - start;
             fprintf(stderr, "Time that takes to get new audio: %f\n", (pcmf32_index_tmp - pcmf32_index_end)/1000.0);
             // update the start point for next audio segment
@@ -992,6 +1117,7 @@ int main(int argc, char ** argv) {
     }
 
     //audio.pause();
+    streamer.stop();
     print_tsw(committed);
     print_tsw_with_token_latency(latency_record);
     whisper_print_timings(ctx);

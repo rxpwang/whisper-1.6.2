@@ -493,7 +493,7 @@ whisper_streaming_cpp: examples/whisper_streaming_cpp/whisper_streaming_cpp.cpp 
 	$(CXX) $(CXXFLAGS) examples/whisper_streaming_cpp/whisper_streaming_cpp.cpp $(SRC_COMMON) $(WHISPER_OBJ) -o whisper_streaming_cpp $(LDFLAGS)
 
 whisper_streaming_cpp_optimized: examples/whisper_streaming_cpp_optimized/whisper_streaming_cpp_optimized.cpp $(SRC_COMMON) $(SRC_COMMON_SDL) $(WHISPER_OBJ)
-	$(CXX) $(CXXFLAGS) examples/whisper_streaming_cpp_optimized/whisper_streaming_cpp_optimized.cpp $(SRC_COMMON) $(SRC_COMMON_SDL) $(WHISPER_OBJ) -o whisper_streaming_cpp_optimized $(CC_SDL) $(LDFLAGS)
+	$(CXX) $(CXXFLAGS) -I/opt/homebrew/include examples/whisper_streaming_cpp_optimized/whisper_streaming_cpp_optimized.cpp $(SRC_COMMON) $(SRC_COMMON_SDL) $(WHISPER_OBJ) -o whisper_streaming_cpp_optimized $(CC_SDL) $(LDFLAGS) -L/opt/homebrew/lib -lportaudio
 
 # ---- fxl, for qt demo ----- #
 common.o: examples/common.cpp
