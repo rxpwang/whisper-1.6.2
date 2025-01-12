@@ -176,30 +176,24 @@ bool get_audio_chunk_from_mic(audio_async &audio, std::vector<float> &pcmf32_all
     int num_samples = (step_ms * sample_rate) / 1000;
     pcmf32_new.clear();
     
-    // if (pcmf32_index + num_samples > pcmf32_all.size()) {
-    //     num_samples = pcmf32_all.size() - pcmf32_index;
-    // }
-    //printf("Get new chunk of audio start from %lld and end with %lld.\n", pcmf32_index_sample, pcmf32_index_sample + num_samples);
-    // there is no stopping mechanism for now, so the program will only terminate when it reaches the end of the audio
-    // with a segfault (access out-of-bound memory)
     bool has_more_audio = true;
-    // if (pcmf32_index_sample + num_samples >= pcmf32_all.size()) {
-    //     has_more_audio = false;
-    //     pcmf32_new.insert(pcmf32_new.end(), pcmf32_all.begin()+pcmf32_index_sample, pcmf32_all.end());
-    // } else {
-    //     pcmf32_new.insert(pcmf32_new.end(), pcmf32_all.begin()+pcmf32_index_sample,
-    //                                         pcmf32_all.begin()+pcmf32_index_sample+num_samples);
-    // }
     std::vector<float> pcmf32_tmp;
+    int count = 0;
     while(true) {
         audio.get(step_ms, pcmf32_tmp);
-
+        count++;
         if ((int) pcmf32_tmp.size() >= num_samples) {
             audio.clear();
             break;
         }
+        // print current pcmf32_tmp length in seconds
+        fprintf(stdout, "pcmf32_tmp length: %f\n", pcmf32_tmp.size() / float(sample_rate));
         std::this_thread::sleep_for(std::chrono::milliseconds(1));
     }
+    // print pcmf32_tmp length in seconds
+    fprintf(stdout, "pcmf32_tmp length: %f\n", pcmf32_tmp.size() / float(sample_rate));
+    // print count
+    fprintf(stdout, "count: %d\n", count);
     pcmf32_all.insert(pcmf32_all.end(), pcmf32_tmp.begin(), pcmf32_tmp.end());
     pcmf32_new.insert(pcmf32_new.end(), pcmf32_all.begin() + pcmf32_index_sample, pcmf32_all.begin() + pcmf32_index_sample + pcmf32_tmp.size());
 
@@ -727,7 +721,11 @@ int main(int argc, char ** argv) {
             // get the ingested data so far
             pcmf32_index_end = ggml_time_us() / 1000.0 - start;
             //is_running = get_audio_chunk(pcmf32_all, pcmf32_new, pcmf32_index, pcmf32_index_end - pcmf32_index, WHISPER_SAMPLE_RATE);
+            // print new audio chunk length
+            fprintf(stderr, "New audio chunk length: %f\n", (pcmf32_index_end - pcmf32_index)/1000.0);
             is_running = get_audio_chunk_from_mic(audio, pcmf32_all, pcmf32_new, pcmf32_index, pcmf32_index_end - pcmf32_index, WHISPER_SAMPLE_RATE);
+            int64_t pcmf32_index_tmp = ggml_time_us() / 1000.0 - start;
+            fprintf(stderr, "Time that takes to get new audio: %f\n", (pcmf32_index_tmp - pcmf32_index_end)/1000.0);
             // update the start point for next audio segment
             pcmf32_index = pcmf32_index_end;
 
@@ -869,7 +867,7 @@ int main(int argc, char ** argv) {
             std::string complete_transcript = std::get<2>(completed);
             std::string incomplete_transcript = std::get<2>(the_rest);
             //printf("COMPLETE NOW: %s\n", complete_transcript.c_str());         
-            system("clear");
+            //system("clear");
             print_token_timestamp_vector_list_transcript(transcript_buffer.self_committed_in_buffer);
             printf("INCOMPLETE: %s\n", incomplete_transcript.c_str());
 
