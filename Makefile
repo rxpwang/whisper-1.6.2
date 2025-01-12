@@ -509,7 +509,7 @@ common-sdl.o: examples/common-sdl.cpp
 	$(CXX) $(CXXFLAGS) -c examples/common-sdl.cpp -o common-sdl.o $(CC_SDL0)
 
 whisper-qt.o: examples/whisper-qt/whisper-qt.cpp
-	$(CXX) $(CXXFLAGS) -c examples/whisper-qt/whisper-qt.cpp -o whisper-qt.o $(CC_SDL0)
+	$(CXX) $(CXXFLAGS)  -I/opt/homebrew/include -c examples/whisper-qt/whisper-qt.cpp -o whisper-qt.o $(CC_SDL0) -L/opt/homebrew/lib -lportaudio
 
 lib_whisper_stream.a: whisper-qt.o common.o common-ggml.o grammar-parser.o common-sdl.o
 	$(AR) rcs lib_whisper_stream.a whisper-qt.o common.o common-ggml.o grammar-parser.o common-sdl.o

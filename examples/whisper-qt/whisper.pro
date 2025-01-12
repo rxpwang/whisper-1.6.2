@@ -37,3 +37,4 @@ QMAKE_LFLAGS += `sdl2-config --libs`
 
 # copied from the top makefile. XXX make this automatic
 QMAKE_LFLAGS += -framework Accelerate -framework Foundation -framework Metal -framework MetalKit
+QMAKE_LFLAGS += -L/opt/homebrew/lib -lportaudio
