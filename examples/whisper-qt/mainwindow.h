@@ -12,6 +12,8 @@
 // #include <QOpenGLShaderProgram>
 // #include <QOpenGLBuffer>
 #include <QPainter>
+#include <QGuiApplication>
+#include <QScreen>
 
 #include <vector>
 #include <algorithm>
@@ -26,6 +28,8 @@ public:
     explicit WaveformWidget(QWidget *parent = nullptr)
         : QOpenGLWidget(parent) {
         setStyleSheet("background-color: lightblue;");
+        // set m_waveformData to 30 seconds of silence
+        //m_waveformData = std::vector<float>(16000 * 30, 0.0f);
     }
 
     void setWaveformData(const std::vector<float> &data)
@@ -100,8 +104,13 @@ protected:
         // Set up OpenGL rendering state
         glColor3f(0.0f, 1.0f, 0.0f); // Green color for the waveform
         glBegin(GL_LINE_STRIP);
-        for (size_t i = 0; i < m_waveformData.size(); ++i) {
-            float x = static_cast<float>(i) / (m_waveformData.size() - 1) * 2.0f - 1.0f; // Normalize to [-1, 1]
+        // get a tmp waveform data. if the original waveform data is shorter than 30s, then pad it with 0 to 30s
+        std::vector<float> tmp_waveform_data = m_waveformData;
+        if (tmp_waveform_data.size() < MY_WHISPER_SAMPLE_RATE * DRAW_MOST_RECENT_SEC) {
+            tmp_waveform_data.resize(MY_WHISPER_SAMPLE_RATE * DRAW_MOST_RECENT_SEC, 0.0f);
+        }
+        for (size_t i = 0; i < tmp_waveform_data.size(); ++i) {
+            float x = static_cast<float>(i) / (tmp_waveform_data.size() - 1) * 2.0f - 1.0f; // Normalize to [-1, 1]
             // drawing the audio buffer part with different color
             int audio_buffer_start_sample = ((audio_buffer_start - current_wave_start) * MY_WHISPER_SAMPLE_RATE);
             int audio_buffer_end_sample = ((audio_buffer_end - current_wave_start) * MY_WHISPER_SAMPLE_RATE);
@@ -110,7 +119,7 @@ protected:
             } else {
                 glColor3f(0.0f, 1.0f, 0.0f); // Green color for the waveform
             }
-            glVertex2f(x, m_waveformData[i]);
+            glVertex2f(x, tmp_waveform_data[i]);
         }
         glEnd();
 
@@ -127,13 +136,19 @@ protected:
         // Draw the end index (right side)
         QString endText = QString::number(current_wave_end);  // Ending index
         // painter.drawText(width() - 30, height() / 2, endText);
-        painter.drawText(width() - 30, height() / 4, endText);
+        // painter.drawText(width() - 30, height() / 4, endText);
+        // calculate the position of the end index, the end of the visualized waveform is always current_wave_start + 30s
+        float endpos0 = ((current_wave_end-current_wave_start) / DRAW_MOST_RECENT_SEC) * width() - 30;
+        painter.drawText(endpos0, height() / 4, endText);
+
 
         QString audioBufferStartText = QString::number(audio_buffer_start);
         QString audioBufferEndText = QString::number(audio_buffer_end);
         // calculate the audio buffer start and end text position
-        float startpos = 3 + ((audio_buffer_start-current_wave_start) / (current_wave_end-current_wave_start)) * width();
-        float endpos = ((audio_buffer_end-current_wave_start) / (current_wave_end-current_wave_start)) * width() - 30;
+        //float startpos = 3 + ((audio_buffer_start-current_wave_start) / (current_wave_end-current_wave_start)) * width();
+        //float endpos = ((audio_buffer_end-current_wave_start) / (current_wave_end-current_wave_start)) * width() - 30;
+        float startpos = 3 + ((audio_buffer_start-current_wave_start) / (DRAW_MOST_RECENT_SEC)) * width();
+        float endpos = ((audio_buffer_end-current_wave_start) / (DRAW_MOST_RECENT_SEC)) * width() - 30;
         painter.drawText(startpos, height() * 5 / 6, audioBufferStartText);
         painter.drawText(endpos, height() * 5 / 6, audioBufferEndText);
         //painter.end();
@@ -146,7 +161,8 @@ protected:
             double token_time = (start_time_tmp + end_time_tmp) / 2;
 
             if (start_time_tmp >= current_wave_start && end_time_tmp <= current_wave_end) {
-                float xpos = 3 + ((token_time - current_wave_start) / (current_wave_end - current_wave_start)) * width();
+                //float xpos = 3 + ((token_time - current_wave_start) / (current_wave_end - current_wave_start)) * width();
+                float xpos = 3 + ((token_time - current_wave_start) / (DRAW_MOST_RECENT_SEC)) * width();
                 //painter.drawText(xpos, height() / 2 + 20, QString::fromStdString(transcript));
                 float ypos = height() / 2 + 10;
                 painter.save();
@@ -166,7 +182,8 @@ protected:
             double token_time = (start_time_tmp + end_time_tmp) / 2;
 
             if (start_time_tmp >= current_wave_start && end_time_tmp <= current_wave_end) {
-                float xpos = 3 + ((token_time - current_wave_start) / (current_wave_end - current_wave_start)) * width();
+                //float xpos = 3 + ((token_time - current_wave_start) / (current_wave_end - current_wave_start)) * width();
+                float xpos = 3 + ((token_time - current_wave_start) / (DRAW_MOST_RECENT_SEC)) * width();
                 //painter.drawText(xpos, height() / 2 + 20, QString::fromStdString(transcript));
                 float ypos = height() / 2 + 10;
                 painter.save();
@@ -209,6 +226,15 @@ public:
     int argc; char ** argv; // will receive args
 
     MainWindow(int argc, char **argv) : argc(argc), argv(argv) {
+        // Get the screen geometry
+        QScreen *screen = QGuiApplication::primaryScreen();
+        if (screen) {
+            QRect screenGeometry = screen->geometry();
+            int screenWidth = screenGeometry.width();
+
+            // Set the main window width to the screen width
+            setFixedWidth(screenWidth);
+        }
         // Create the central widget
         auto *centralWidget = new QWidget(this);
         setCentralWidget(centralWidget);
@@ -218,8 +244,8 @@ public:
 
         // Add the waveform widget
         waveformWidget = new WaveformWidget(this);
-        waveformWidget->setMinimumHeight(50); // Minimum height of 50 pixels
-        waveformWidget->setMaximumHeight(100); // Maximum height of 100 pixels
+        waveformWidget->setMinimumHeight(100); // Minimum height of 50 pixels
+        waveformWidget->setMaximumHeight(150); // Maximum height of 100 pixels
         layout->addWidget(waveformWidget);
 
         // Add the label
@@ -229,7 +255,7 @@ public:
         label->setMinimumWidth(50);
         label->setMaximumWidth(QWIDGETSIZE_MAX);
 
-        label->setMinimumHeight(50); // Set the minimum height to 50 pixels
+        label->setMinimumHeight(100); // Set the minimum height to 50 pixels
         //label->setMaximumHeight(100); // Allow resizing up to 100 pixels
         label->setMaximumHeight(QWIDGETSIZE_MAX); // Allow resizing up to the maximum height
         
