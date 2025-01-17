@@ -267,12 +267,34 @@ public:
         // setCentralWidget(waveformWidget);
         // resize(800, 400);
 
-        startWorker(); 
+        //auto *layout = new QVBoxLayout(centralWidget);
+
+        // Create buttons
+        auto *startButton = new QPushButton("Start Worker", this);
+        auto *stopButton = new QPushButton("Stop Worker", this);
+
+        layout->addWidget(startButton);
+        layout->addWidget(stopButton);
+
+        // Connect signals and slots
+        connect(startButton, &QPushButton::clicked, this, &MainWindow::startWorker);
+        connect(stopButton, &QPushButton::clicked, this, &MainWindow::stopWorker);
+
+
+        //startWorker(); 
+    }
+
+    ~MainWindow() {
+        if (workerThread->isRunning()) {
+            workerThread->quit();
+            workerThread->wait();
+        }
+        delete workerThread;
     }
 
     void startWorker() {
-        auto *worker = new Worker(argc, argv);
-        auto *workerThread = new QThread;
+        worker = new Worker(argc, argv);
+        workerThread = new QThread;
 
         Worker::instance = worker; // Save the only instance
 
@@ -347,6 +369,20 @@ private slots:
         }
         avg_token_latency = latency_record.empty() ? 0 : total_latency / latency_record.size();
         render_text();
+    }
+
+    void stopWorker() {
+        if (workerThread->isRunning()) {
+            workerThread->requestInterruption(); // Use this if your worker checks for interruptions
+            workerThread->quit();
+            // reinitialize the waveform widget
+            waveformWidget->WhisperflowRestarting(true);
+            // reset the variables
+            all_confirmed_tokens.clear();
+            unconfirmed_tokens.clear();
+            avg_token_latency = 0;
+            workerThread->wait();
+        }
     }
 
 private:
@@ -431,4 +467,7 @@ private:
     std::vector<float> audio_data;  
     double start_time, end_time; 
     double avg_token_latency = 0;
+    
+    QThread *workerThread;
+    Worker *worker;
 };

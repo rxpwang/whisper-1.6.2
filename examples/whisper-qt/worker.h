@@ -91,6 +91,9 @@ private:
 public slots:
     // thread main body 
     void doWork() {
+        auto shouldStop = []() {
+            return QThread::currentThread()->isInterruptionRequested();
+        };
         // thread_main(this->argc, this->argv, 
         //     // IO
         //     confirm_tokens_callback,
@@ -102,7 +105,8 @@ public slots:
         //     // perf stats
         //     NULL, // TBD
         //     // status
-        //     NULL // TBD
+        //     NULL, // TBD
+        //     shouldStop
         // );
         thread_main_baseline(this->argc, this->argv, 
             // IO
@@ -115,7 +119,8 @@ public slots:
             // perf stats
             NULL, // TBD
             // status
-            NULL // TBD
+            NULL, // TBD
+            shouldStop
         );
     }
 

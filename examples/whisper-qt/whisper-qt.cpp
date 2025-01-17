@@ -690,7 +690,8 @@ int thread_main(int argc, char ** argv,
     // perf stats
     void (*update_avg_token_lat)(double),
     // status
-    void (*vad_on)(bool)
+    void (*vad_on)(bool),
+    std::function<bool()> shouldStop
     ) 
 {
     whisper_params params;
@@ -1222,6 +1223,11 @@ int thread_main(int argc, char ** argv,
             } */
             fflush(stdout);
         }
+        
+        if (shouldStop()) {
+            std::cout << "Long-running function interrupted!" << std::endl;
+            break;
+        }
         //whisper_free(ctx);
         //struct whisper_context * ctx = whisper_init_from_file_with_params(params.model.c_str(), cparams);
         //ctx = whisper_init_from_file_with_params(params.model.c_str(), cparams);
@@ -1261,7 +1267,8 @@ int thread_main_baseline(int argc, char ** argv,
     // perf stats
     void (*update_avg_token_lat)(double),
     // status
-    void (*vad_on)(bool)) {
+    void (*vad_on)(bool),
+    std::function<bool()> shouldStop) {
     whisper_params params;
 
     if (whisper_params_parse(argc, argv, params) == false) {
@@ -1778,6 +1785,10 @@ int thread_main_baseline(int argc, char ** argv,
         // if (callback_whisperflow_restarting) {
         //     callback_whisperflow_restarting(need_restarting);
         // }
+        if (shouldStop()) {
+            std::cout << "Long-running function interrupted!" << std::endl;
+            break;
+        }
     }
 
     //audio.pause();

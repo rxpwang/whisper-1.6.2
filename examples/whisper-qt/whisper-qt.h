@@ -11,7 +11,8 @@ int thread_main(int argc, char ** argv,
     // perf stats
     void (*update_avg_token_lat)(double),
     // status
-    void (*vad_on)(bool)
+    void (*vad_on)(bool),
+    std::function<bool()> shouldStop
     ); 
 
 int thread_main_baseline(int argc, char ** argv, 
@@ -25,5 +26,6 @@ int thread_main_baseline(int argc, char ** argv,
     // perf stats
     void (*update_avg_token_lat)(double),
     // status
-    void (*vad_on)(bool)
+    void (*vad_on)(bool),
+    std::function<bool()> shouldStop
     ); 
