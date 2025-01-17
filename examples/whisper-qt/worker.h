@@ -91,7 +91,20 @@ private:
 public slots:
     // thread main body 
     void doWork() {
-        thread_main(this->argc, this->argv, 
+        // thread_main(this->argc, this->argv, 
+        //     // IO
+        //     confirm_tokens_callback,
+        //     unconfirmed_tokens_callback,
+        //     new_audio_chunk_callback,
+        //     audio_buffer_info_callback,
+        //     whisperflow_restarting_callback,
+        //     token_latency_info_callback,
+        //     // perf stats
+        //     NULL, // TBD
+        //     // status
+        //     NULL // TBD
+        // );
+        thread_main_baseline(this->argc, this->argv, 
             // IO
             confirm_tokens_callback,
             unconfirmed_tokens_callback,
