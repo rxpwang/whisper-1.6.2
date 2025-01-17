@@ -270,14 +270,20 @@ public:
         //auto *layout = new QVBoxLayout(centralWidget);
 
         // Create buttons
-        auto *startButton = new QPushButton("Start Worker", this);
-        auto *stopButton = new QPushButton("Stop Worker", this);
+        auto *buttonLayout = new QHBoxLayout();
+        auto *startButton = new QPushButton("Start Ours", this);
+        auto *startButtonBaseline = new QPushButton("Start Baseline", this);
+        auto *stopButton = new QPushButton("Stop", this);
 
-        layout->addWidget(startButton);
-        layout->addWidget(stopButton);
+        buttonLayout->addWidget(startButton);
+        buttonLayout->addWidget(startButtonBaseline);
+        buttonLayout->addWidget(stopButton);
+
+        layout->addLayout(buttonLayout);
 
         // Connect signals and slots
         connect(startButton, &QPushButton::clicked, this, &MainWindow::startWorker);
+        connect(startButtonBaseline, &QPushButton::clicked, this, &MainWindow::startWorkerBaseline);
         connect(stopButton, &QPushButton::clicked, this, &MainWindow::stopWorker);
 
 
@@ -293,7 +299,35 @@ public:
     }
 
     void startWorker() {
-        worker = new Worker(argc, argv);
+        if (running) return;
+        running = true;
+        worker = new Worker(argc, argv, Worker::Mode::Main);
+        workerThread = new QThread;
+
+        Worker::instance = worker; // Save the only instance
+
+        worker->moveToThread(workerThread);
+
+        connect(workerThread, &QThread::started, worker, &Worker::doWork);
+        connect(worker, &Worker::updateText, this, &MainWindow::updateLabel);
+        connect(worker, &Worker::finished, workerThread, &QThread::quit);
+        connect(worker, &Worker::finished, worker, &Worker::deleteLater);
+        connect(workerThread, &QThread::finished, workerThread, &QThread::deleteLater);
+
+        connect(worker, &Worker::signal_confirm_tokens, this, &MainWindow::onConfirmedTokens);
+        connect(worker, &Worker::signal_unconfirmed_tokens, this, &MainWindow::onUnconfirmedTokens);
+        connect(worker, &Worker::signal_new_audio_chunck, this, &MainWindow::onNewAudioChunk);
+        connect(worker, &Worker::signal_audio_buffer_info, this, &MainWindow::onAudioBufferInfo);
+        connect(worker, &Worker::signal_whisperflow_restarting, this, &MainWindow::onWhisperflowRestarting);
+        connect(worker, &Worker::signal_token_latency_info, this, &MainWindow::onTokenLatencyInfo);
+
+        workerThread->start();
+    }
+
+    void startWorkerBaseline() {
+        if (running) return;
+        running = true;
+        worker = new Worker(argc, argv, Worker::Mode::Baseline);
         workerThread = new QThread;
 
         Worker::instance = worker; // Save the only instance
@@ -372,17 +406,30 @@ private slots:
     }
 
     void stopWorker() {
-        if (workerThread->isRunning()) {
-            workerThread->requestInterruption(); // Use this if your worker checks for interruptions
-            workerThread->quit();
-            // reinitialize the waveform widget
-            waveformWidget->WhisperflowRestarting(true);
-            // reset the variables
-            all_confirmed_tokens.clear();
-            unconfirmed_tokens.clear();
-            avg_token_latency = 0;
-            workerThread->wait();
+        if (running == true) {
+            if (workerThread->isRunning()) {
+                workerThread->requestInterruption(); // Use this if your worker checks for interruptions
+                workerThread->quit();
+                // reinitialize the waveform widget
+                waveformWidget->WhisperflowRestarting(true);
+                // reset the variables
+                workerThread->wait();
+                running = false;
+                all_confirmed_tokens.clear();
+                unconfirmed_tokens.clear();
+                avg_token_latency = 0;
+                render_text();
+                render_space();
+            }
         }
+        waveformWidget->WhisperflowRestarting(true);
+        running = false;
+        all_confirmed_tokens.clear();
+        unconfirmed_tokens.clear();
+        avg_token_latency = 0;
+        render_text();
+        render_space();
+        //render_text();
     }
 
 private:
@@ -417,6 +464,16 @@ private:
 
         label->setText(text);
     }
+
+    // render long space lines to flush the previous text
+    void render_space(void) {
+        QString text = "<font color='green'><b>"; // HTML format
+        for (int i = 0; i < 10000; ++i) {
+            text += "<br>";
+        }
+        label->setText(text);
+    }
+
 
     // void render_text_aligned(void){
     //     // render the confirmed tokens, aligned with the waveform
@@ -470,4 +527,5 @@ private:
     
     QThread *workerThread;
     Worker *worker;
+    bool running = false;
 };

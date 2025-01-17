@@ -15,8 +15,13 @@ class Worker : public QObject {
 public:
     int argc; 
     char ** argv; // will receive args
+    enum Mode {
+        Baseline,
+        Main
+    };
+    Mode mode;
     // Worker() = default;
-    Worker(int argc, char **argv) : argc(argc), argv(argv) {}
+    Worker(int argc, char **argv, Mode mode) : argc(argc), argv(argv), mode(mode) {}
     static Worker* instance;    // the only instance of Worker
 
 private: 
@@ -94,6 +99,38 @@ public slots:
         auto shouldStop = []() {
             return QThread::currentThread()->isInterruptionRequested();
         };
+        // check the mode to decide which thread_main to call
+        if (mode == Mode::Main) {
+            thread_main(this->argc, this->argv, 
+                // IO
+                confirm_tokens_callback,
+                unconfirmed_tokens_callback,
+                new_audio_chunk_callback,
+                audio_buffer_info_callback,
+                whisperflow_restarting_callback,
+                token_latency_info_callback,
+                // perf stats
+                NULL, // TBD
+                // status
+                NULL, // TBD
+                shouldStop
+            );
+        } else {
+            thread_main_baseline(this->argc, this->argv, 
+                // IO
+                confirm_tokens_callback,
+                unconfirmed_tokens_callback,
+                new_audio_chunk_callback,
+                audio_buffer_info_callback,
+                whisperflow_restarting_callback,
+                token_latency_info_callback,
+                // perf stats
+                NULL, // TBD
+                // status
+                NULL, // TBD
+                shouldStop
+            );
+        }
         // thread_main(this->argc, this->argv, 
         //     // IO
         //     confirm_tokens_callback,
@@ -108,20 +145,20 @@ public slots:
         //     NULL, // TBD
         //     shouldStop
         // );
-        thread_main_baseline(this->argc, this->argv, 
-            // IO
-            confirm_tokens_callback,
-            unconfirmed_tokens_callback,
-            new_audio_chunk_callback,
-            audio_buffer_info_callback,
-            whisperflow_restarting_callback,
-            token_latency_info_callback,
-            // perf stats
-            NULL, // TBD
-            // status
-            NULL, // TBD
-            shouldStop
-        );
+        // thread_main_baseline(this->argc, this->argv, 
+        //     // IO
+        //     confirm_tokens_callback,
+        //     unconfirmed_tokens_callback,
+        //     new_audio_chunk_callback,
+        //     audio_buffer_info_callback,
+        //     whisperflow_restarting_callback,
+        //     token_latency_info_callback,
+        //     // perf stats
+        //     NULL, // TBD
+        //     // status
+        //     NULL, // TBD
+        //     shouldStop
+        // );
     }
 
 signals:

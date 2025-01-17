@@ -1429,9 +1429,12 @@ int thread_main_baseline(int argc, char ** argv,
         fprintf(stderr, "error: failed to read WAV file '%s'\n", fname_inp.c_str());
     }
     std::vector<float> pcmf32_audio_tag;
+    // disable audio tag for baseline
     if (params.audio_tag != "") {
-        pcmf32_audio_tag = readCSVToVector(params.audio_tag);
+        //pcmf32_audio_tag = readCSVToVector(params.audio_tag);
+        params.audio_tag = "";
     }
+
     /*
     if (!whisper_is_multilingual(ctx)) {
         if (params.language != "en" || params.translate) {
@@ -1594,7 +1597,8 @@ int thread_main_baseline(int argc, char ** argv,
             wparams.beam_search.beam_size = params.beam_size;
 
 
-            wparams.audio_ctx        = params.audio_ctx;
+            //wparams.audio_ctx        = params.audio_ctx;
+            wparams.audio_ctx        = 0;
             int max_round_decode_tmp = int(float(pcmf32.size()) / WHISPER_SAMPLE_RATE / (params.step_ms / 1000.0)  * params.max_round_decode);
             wparams.max_round_decode = max_round_decode_tmp;
             wparams.speed_up         = params.speed_up;
