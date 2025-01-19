@@ -83,7 +83,7 @@ public:
 
 protected:
     void initializeGL() override {
-        initializeOpenGLFunctions(); // fxl:will crash inside?
+        initializeOpenGLFunctions();
 
         std::cout << "OpenGL Version:" << reinterpret_cast<const char*>(glGetString(GL_VERSION));
         std::cout << "GLSL Version:" << reinterpret_cast<const char*>(glGetString(GL_SHADING_LANGUAGE_VERSION));
@@ -223,9 +223,19 @@ class MainWindow : public QMainWindow {
     Q_OBJECT
 
 public:
-    int argc; char ** argv; // will receive args
+    int argc; char ** argv; // will receive cmdline args
 
     MainWindow(int argc, char **argv) : argc(argc), argv(argv) {
+
+        // peek cmdline args to save some whisper configs, for display on the UI
+        for (int i = 1; i < argc; ++i) {
+            if ((std::string(argv[i]) == "-m" || std::string(argv[i]) == "--model") && i + 1 < argc) {
+                if (i + 1 < argc)
+                    this->model = argv[i + 1];
+                break;
+            }
+        }
+
         // Get the screen geometry
         QScreen *screen = QGuiApplication::primaryScreen();
         if (screen) {
@@ -286,8 +296,6 @@ public:
         connect(startButtonBaseline, &QPushButton::clicked, this, &MainWindow::startWorkerBaseline);
         connect(stopButton, &QPushButton::clicked, this, &MainWindow::stopWorker);
 
-
-        //startWorker(); 
     }
 
     ~MainWindow() {
@@ -301,6 +309,8 @@ public:
     void startWorker() {
         if (running) return;
         running = true;
+        this->version = "Ours"; 
+
         worker = new Worker(argc, argv, Worker::Mode::Main);
         workerThread = new QThread;
 
@@ -327,6 +337,8 @@ public:
     void startWorkerBaseline() {
         if (running) return;
         running = true;
+        this->version = "Baseline"; 
+
         worker = new Worker(argc, argv, Worker::Mode::Baseline);
         workerThread = new QThread;
 
@@ -459,6 +471,10 @@ private:
         // Append average latency in a new line
         text += QString("<br><font color='blue'>Average Latency: %1 s</font>")
                 .arg(QString::number(avg_token_latency, 'f', 2));
+        
+        // version (ours vs theirs, and model name) 
+        text += "<br><font color='black'>Version: " + QString::fromStdString(version);
+        text += " | Model: " + QString::fromStdString(model) + "</font>";
 
         std::cout << text.toStdString() << std::endl;
 
@@ -522,10 +538,12 @@ private:
     std::vector<std::tuple<double, double, std::string>> unconfirmed_tokens;
     // fxl: audio_data. the UI thread trim it as needed
     std::vector<float> audio_data;  
-    double start_time, end_time; 
+    // double start_time, end_time; 
     double avg_token_latency = 0;
     
     QThread *workerThread;
     Worker *worker;
     bool running = false;
+    std::string model = "???"; 
+    std::string version = "unloaded";
 };

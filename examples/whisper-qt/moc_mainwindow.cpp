@@ -117,7 +117,14 @@ constexpr auto qt_meta_stringdata_CLASSMainWindowENDCLASS = QtMocHelpers::string
     "start",
     "end",
     "std::vector<float>",
-    "data"
+    "data",
+    "onAudioBufferInfo",
+    "onWhisperflowRestarting",
+    "need_restarting",
+    "onTokenLatencyInfo",
+    "std::vector<std::tuple<double,double,std::string,double>>",
+    "latency_record",
+    "stopWorker"
 );
 #else  // !QT_MOC_HAS_STRINGDATA
 #error "qtmochelpers.h not found or too old."
@@ -130,7 +137,7 @@ Q_CONSTINIT static const uint qt_meta_data_CLASSMainWindowENDCLASS[] = {
       12,       // revision
        0,       // classname
        0,    0, // classinfo
-       4,   14, // methods
+       8,   14, // methods
        0,    0, // properties
        0,    0, // enums/sets
        0,    0, // constructors
@@ -138,16 +145,24 @@ Q_CONSTINIT static const uint qt_meta_data_CLASSMainWindowENDCLASS[] = {
        0,       // signalCount
 
  // slots: name, argc, parameters, tag, flags, initial metatype offsets
-       1,    1,   38,    2, 0x08,    1 /* Private */,
-       4,    1,   41,    2, 0x08,    3 /* Private */,
-       7,    1,   44,    2, 0x08,    5 /* Private */,
-       8,    3,   47,    2, 0x08,    7 /* Private */,
+       1,    1,   62,    2, 0x08,    1 /* Private */,
+       4,    1,   65,    2, 0x08,    3 /* Private */,
+       7,    1,   68,    2, 0x08,    5 /* Private */,
+       8,    3,   71,    2, 0x08,    7 /* Private */,
+      13,    2,   78,    2, 0x08,   11 /* Private */,
+      14,    1,   83,    2, 0x08,   14 /* Private */,
+      16,    1,   86,    2, 0x08,   16 /* Private */,
+      19,    0,   89,    2, 0x08,   18 /* Private */,
 
  // slots: parameters
     QMetaType::Void, QMetaType::QString,    3,
     QMetaType::Void, 0x80000000 | 5,    6,
     QMetaType::Void, 0x80000000 | 5,    6,
     QMetaType::Void, QMetaType::Double, QMetaType::Double, 0x80000000 | 11,    9,   10,   12,
+    QMetaType::Void, QMetaType::Double, QMetaType::Double,    9,   10,
+    QMetaType::Void, QMetaType::Bool,   15,
+    QMetaType::Void, 0x80000000 | 17,   18,
+    QMetaType::Void,
 
        0        // eod
 };
@@ -174,7 +189,19 @@ Q_CONSTINIT const QMetaObject MainWindow::staticMetaObject = { {
         QtPrivate::TypeAndForceComplete<void, std::false_type>,
         QtPrivate::TypeAndForceComplete<double, std::false_type>,
         QtPrivate::TypeAndForceComplete<double, std::false_type>,
-        QtPrivate::TypeAndForceComplete<const std::vector<float> &, std::false_type>
+        QtPrivate::TypeAndForceComplete<const std::vector<float> &, std::false_type>,
+        // method 'onAudioBufferInfo'
+        QtPrivate::TypeAndForceComplete<void, std::false_type>,
+        QtPrivate::TypeAndForceComplete<double, std::false_type>,
+        QtPrivate::TypeAndForceComplete<double, std::false_type>,
+        // method 'onWhisperflowRestarting'
+        QtPrivate::TypeAndForceComplete<void, std::false_type>,
+        QtPrivate::TypeAndForceComplete<bool, std::false_type>,
+        // method 'onTokenLatencyInfo'
+        QtPrivate::TypeAndForceComplete<void, std::false_type>,
+        QtPrivate::TypeAndForceComplete<const std::vector<std::tuple<double,double,std::string,double>> &, std::false_type>,
+        // method 'stopWorker'
+        QtPrivate::TypeAndForceComplete<void, std::false_type>
     >,
     nullptr
 } };
@@ -189,6 +216,10 @@ void MainWindow::qt_static_metacall(QObject *_o, QMetaObject::Call _c, int _id, 
         case 1: _t->onConfirmedTokens((*reinterpret_cast< std::add_pointer_t<std::vector<std::tuple<double,double,std::string>>>>(_a[1]))); break;
         case 2: _t->onUnconfirmedTokens((*reinterpret_cast< std::add_pointer_t<std::vector<std::tuple<double,double,std::string>>>>(_a[1]))); break;
         case 3: _t->onNewAudioChunk((*reinterpret_cast< std::add_pointer_t<double>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<double>>(_a[2])),(*reinterpret_cast< std::add_pointer_t<std::vector<float>>>(_a[3]))); break;
+        case 4: _t->onAudioBufferInfo((*reinterpret_cast< std::add_pointer_t<double>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<double>>(_a[2]))); break;
+        case 5: _t->onWhisperflowRestarting((*reinterpret_cast< std::add_pointer_t<bool>>(_a[1]))); break;
+        case 6: _t->onTokenLatencyInfo((*reinterpret_cast< std::add_pointer_t<std::vector<std::tuple<double,double,std::string,double>>>>(_a[1]))); break;
+        case 7: _t->stopWorker(); break;
         default: ;
         }
     }
@@ -213,13 +244,13 @@ int MainWindow::qt_metacall(QMetaObject::Call _c, int _id, void **_a)
     if (_id < 0)
         return _id;
     if (_c == QMetaObject::InvokeMetaMethod) {
-        if (_id < 4)
+        if (_id < 8)
             qt_static_metacall(this, _c, _id, _a);
-        _id -= 4;
+        _id -= 8;
     } else if (_c == QMetaObject::RegisterMethodArgumentMetaType) {
-        if (_id < 4)
+        if (_id < 8)
             *reinterpret_cast<QMetaType *>(_a[0]) = QMetaType();
-        _id -= 4;
+        _id -= 8;
     }
     return _id;
 }

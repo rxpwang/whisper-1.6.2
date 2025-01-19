@@ -39,7 +39,7 @@ COMPRESS      = gzip -9f
 DISTNAME      = whisper-qt1.0.0
 DISTDIR = /Users/xzl/workspace-ggml/whisper-1.6.2/examples/whisper-qt/.tmp/whisper-qt1.0.0
 LINK          = /Library/Developer/CommandLineTools/usr/bin/clang++
-LFLAGS        = -stdlib=libc++ `sdl2-config --libs` -framework Accelerate -framework Foundation -framework Metal -framework MetalKit -headerpad_max_install_names $(EXPORT_ARCH_ARGS) -isysroot /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk -mmacosx-version-min=14.0 -Wl,-rpath,@executable_path/../Frameworks -Wl,-rpath,/opt/homebrew/lib
+LFLAGS        = -stdlib=libc++ `sdl2-config --libs` -framework Accelerate -framework Foundation -framework Metal -framework MetalKit -L/opt/homebrew/lib -lportaudio -headerpad_max_install_names $(EXPORT_ARCH_ARGS) -isysroot /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk -mmacosx-version-min=14.0 -Wl,-rpath,@executable_path/../Frameworks -Wl,-rpath,/opt/homebrew/lib
 LIBS          = $(SUBLIBS) -F/opt/homebrew/lib ../../libwhisper.a ../../lib_whisper_stream.a -framework QtOpenGLWidgets -framework QtWidgets -framework QtOpenGL -framework QtGui -framework AppKit -framework ImageIO -framework Metal -framework QtCore -framework IOKit -framework DiskArbitration -framework AGL -framework OpenGL   
 AR            = /Library/Developer/CommandLineTools/usr/bin/ar cq
 RANLIB        = /Library/Developer/CommandLineTools/usr/bin/ranlib -s
@@ -1204,12 +1204,14 @@ moc_worker.cpp: worker.h \
 moc_mainwindow.cpp: mainwindow.h \
 		/opt/homebrew/lib/QtOpenGLWidgets.framework/Headers/QOpenGLWidget \
 		/opt/homebrew/lib/QtOpenGLWidgets.framework/Headers/qopenglwidget.h \
-		/opt/homebrew/lib/QtOpenGL.framework/Headers/QOpenGLFunctions_3_3_Core \
-		/opt/homebrew/lib/QtOpenGL.framework/Headers/qopenglfunctions_3_3_core.h \
-		/opt/homebrew/lib/QtOpenGL.framework/Headers/QOpenGLShaderProgram \
-		/opt/homebrew/lib/QtOpenGL.framework/Headers/qopenglshaderprogram.h \
-		/opt/homebrew/lib/QtOpenGL.framework/Headers/QOpenGLBuffer \
-		/opt/homebrew/lib/QtOpenGL.framework/Headers/qopenglbuffer.h \
+		/opt/homebrew/lib/QtGui.framework/Headers/QOpenGLFunctions \
+		/opt/homebrew/lib/QtGui.framework/Headers/qopenglfunctions.h \
+		/opt/homebrew/lib/QtGui.framework/Headers/QPainter \
+		/opt/homebrew/lib/QtGui.framework/Headers/qpainter.h \
+		/opt/homebrew/lib/QtGui.framework/Headers/QGuiApplication \
+		/opt/homebrew/lib/QtGui.framework/Headers/qguiapplication.h \
+		/opt/homebrew/lib/QtGui.framework/Headers/QScreen \
+		/opt/homebrew/lib/QtGui.framework/Headers/qscreen.h \
 		/opt/homebrew/lib/QtWidgets.framework/Headers/QWidget \
 		/opt/homebrew/lib/QtWidgets.framework/Headers/qwidget.h \
 		/opt/homebrew/lib/QtWidgets.framework/Headers/QVBoxLayout \
@@ -1218,6 +1220,8 @@ moc_mainwindow.cpp: mainwindow.h \
 		/opt/homebrew/lib/QtWidgets.framework/Headers/qlabel.h \
 		/opt/homebrew/lib/QtWidgets.framework/Headers/QPushButton \
 		/opt/homebrew/lib/QtWidgets.framework/Headers/qpushbutton.h \
+		/opt/homebrew/lib/QtWidgets.framework/Headers/QMainWindow \
+		/opt/homebrew/lib/QtWidgets.framework/Headers/qmainwindow.h \
 		worker.h \
 		/opt/homebrew/lib/QtCore.framework/Headers/QObject \
 		/opt/homebrew/lib/QtCore.framework/Headers/qobject.h \
@@ -1253,12 +1257,14 @@ main.o: main.cpp /opt/homebrew/lib/QtWidgets.framework/Headers/QApplication \
 		mainwindow.h \
 		/opt/homebrew/lib/QtOpenGLWidgets.framework/Headers/QOpenGLWidget \
 		/opt/homebrew/lib/QtOpenGLWidgets.framework/Headers/qopenglwidget.h \
-		/opt/homebrew/lib/QtOpenGL.framework/Headers/QOpenGLFunctions_3_3_Core \
-		/opt/homebrew/lib/QtOpenGL.framework/Headers/qopenglfunctions_3_3_core.h \
-		/opt/homebrew/lib/QtOpenGL.framework/Headers/QOpenGLShaderProgram \
-		/opt/homebrew/lib/QtOpenGL.framework/Headers/qopenglshaderprogram.h \
-		/opt/homebrew/lib/QtOpenGL.framework/Headers/QOpenGLBuffer \
-		/opt/homebrew/lib/QtOpenGL.framework/Headers/qopenglbuffer.h \
+		/opt/homebrew/lib/QtGui.framework/Headers/QOpenGLFunctions \
+		/opt/homebrew/lib/QtGui.framework/Headers/qopenglfunctions.h \
+		/opt/homebrew/lib/QtGui.framework/Headers/QPainter \
+		/opt/homebrew/lib/QtGui.framework/Headers/qpainter.h \
+		/opt/homebrew/lib/QtGui.framework/Headers/QGuiApplication \
+		/opt/homebrew/lib/QtGui.framework/Headers/qguiapplication.h \
+		/opt/homebrew/lib/QtGui.framework/Headers/QScreen \
+		/opt/homebrew/lib/QtGui.framework/Headers/qscreen.h \
 		/opt/homebrew/lib/QtWidgets.framework/Headers/QWidget \
 		/opt/homebrew/lib/QtWidgets.framework/Headers/qwidget.h \
 		/opt/homebrew/lib/QtWidgets.framework/Headers/QVBoxLayout \
@@ -1267,6 +1273,8 @@ main.o: main.cpp /opt/homebrew/lib/QtWidgets.framework/Headers/QApplication \
 		/opt/homebrew/lib/QtWidgets.framework/Headers/qlabel.h \
 		/opt/homebrew/lib/QtWidgets.framework/Headers/QPushButton \
 		/opt/homebrew/lib/QtWidgets.framework/Headers/qpushbutton.h \
+		/opt/homebrew/lib/QtWidgets.framework/Headers/QMainWindow \
+		/opt/homebrew/lib/QtWidgets.framework/Headers/qmainwindow.h \
 		worker.h \
 		/opt/homebrew/lib/QtCore.framework/Headers/QObject \
 		/opt/homebrew/lib/QtCore.framework/Headers/qobject.h \

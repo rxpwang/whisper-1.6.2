@@ -47,6 +47,11 @@ constexpr auto qt_meta_stringdata_CLASSWorkerENDCLASS = QtMocHelpers::stringData
     "start",
     "end",
     "std::vector<float>",
+    "signal_audio_buffer_info",
+    "signal_whisperflow_restarting",
+    "need_restarting",
+    "signal_token_latency_info",
+    "std::vector<std::tuple<double,double,std::string,double>>",
     "doWork"
 );
 #else  // !QT_MOC_HAS_STRINGDATA
@@ -60,22 +65,25 @@ Q_CONSTINIT static const uint qt_meta_data_CLASSWorkerENDCLASS[] = {
       12,       // revision
        0,       // classname
        0,    0, // classinfo
-       6,   14, // methods
+       9,   14, // methods
        0,    0, // properties
        0,    0, // enums/sets
        0,    0, // constructors
        0,       // flags
-       5,       // signalCount
+       8,       // signalCount
 
  // signals: name, argc, parameters, tag, flags, initial metatype offsets
-       1,    1,   50,    2, 0x06,    1 /* Public */,
-       4,    0,   53,    2, 0x06,    3 /* Public */,
-       5,    1,   54,    2, 0x06,    4 /* Public */,
-       7,    1,   57,    2, 0x06,    6 /* Public */,
-       8,    3,   60,    2, 0x06,    8 /* Public */,
+       1,    1,   68,    2, 0x06,    1 /* Public */,
+       4,    0,   71,    2, 0x06,    3 /* Public */,
+       5,    1,   72,    2, 0x06,    4 /* Public */,
+       7,    1,   75,    2, 0x06,    6 /* Public */,
+       8,    3,   78,    2, 0x06,    8 /* Public */,
+      12,    2,   85,    2, 0x06,   12 /* Public */,
+      13,    1,   90,    2, 0x06,   15 /* Public */,
+      15,    1,   93,    2, 0x06,   17 /* Public */,
 
  // slots: name, argc, parameters, tag, flags, initial metatype offsets
-      12,    0,   67,    2, 0x0a,   12 /* Public */,
+      17,    0,   96,    2, 0x0a,   19 /* Public */,
 
  // signals: parameters
     QMetaType::Void, QMetaType::QString,    3,
@@ -83,6 +91,9 @@ Q_CONSTINIT static const uint qt_meta_data_CLASSWorkerENDCLASS[] = {
     QMetaType::Void, 0x80000000 | 6,    2,
     QMetaType::Void, 0x80000000 | 6,    2,
     QMetaType::Void, QMetaType::Double, QMetaType::Double, 0x80000000 | 11,    9,   10,    2,
+    QMetaType::Void, QMetaType::Double, QMetaType::Double,    9,   10,
+    QMetaType::Void, QMetaType::Bool,   14,
+    QMetaType::Void, 0x80000000 | 16,    2,
 
  // slots: parameters
     QMetaType::Void,
@@ -115,6 +126,16 @@ Q_CONSTINIT const QMetaObject Worker::staticMetaObject = { {
         QtPrivate::TypeAndForceComplete<double, std::false_type>,
         QtPrivate::TypeAndForceComplete<double, std::false_type>,
         QtPrivate::TypeAndForceComplete<const std::vector<float> &, std::false_type>,
+        // method 'signal_audio_buffer_info'
+        QtPrivate::TypeAndForceComplete<void, std::false_type>,
+        QtPrivate::TypeAndForceComplete<double, std::false_type>,
+        QtPrivate::TypeAndForceComplete<double, std::false_type>,
+        // method 'signal_whisperflow_restarting'
+        QtPrivate::TypeAndForceComplete<void, std::false_type>,
+        QtPrivate::TypeAndForceComplete<bool, std::false_type>,
+        // method 'signal_token_latency_info'
+        QtPrivate::TypeAndForceComplete<void, std::false_type>,
+        QtPrivate::TypeAndForceComplete<const std::vector<std::tuple<double,double,std::string,double>> &, std::false_type>,
         // method 'doWork'
         QtPrivate::TypeAndForceComplete<void, std::false_type>
     >,
@@ -132,7 +153,10 @@ void Worker::qt_static_metacall(QObject *_o, QMetaObject::Call _c, int _id, void
         case 2: _t->signal_confirm_tokens((*reinterpret_cast< std::add_pointer_t<std::vector<std::tuple<double,double,std::string>>>>(_a[1]))); break;
         case 3: _t->signal_unconfirmed_tokens((*reinterpret_cast< std::add_pointer_t<std::vector<std::tuple<double,double,std::string>>>>(_a[1]))); break;
         case 4: _t->signal_new_audio_chunck((*reinterpret_cast< std::add_pointer_t<double>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<double>>(_a[2])),(*reinterpret_cast< std::add_pointer_t<std::vector<float>>>(_a[3]))); break;
-        case 5: _t->doWork(); break;
+        case 5: _t->signal_audio_buffer_info((*reinterpret_cast< std::add_pointer_t<double>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<double>>(_a[2]))); break;
+        case 6: _t->signal_whisperflow_restarting((*reinterpret_cast< std::add_pointer_t<bool>>(_a[1]))); break;
+        case 7: _t->signal_token_latency_info((*reinterpret_cast< std::add_pointer_t<std::vector<std::tuple<double,double,std::string,double>>>>(_a[1]))); break;
+        case 8: _t->doWork(); break;
         default: ;
         }
     } else if (_c == QMetaObject::IndexOfMethod) {
@@ -172,6 +196,27 @@ void Worker::qt_static_metacall(QObject *_o, QMetaObject::Call _c, int _id, void
                 return;
             }
         }
+        {
+            using _t = void (Worker::*)(double , double );
+            if (_t _q_method = &Worker::signal_audio_buffer_info; *reinterpret_cast<_t *>(_a[1]) == _q_method) {
+                *result = 5;
+                return;
+            }
+        }
+        {
+            using _t = void (Worker::*)(bool );
+            if (_t _q_method = &Worker::signal_whisperflow_restarting; *reinterpret_cast<_t *>(_a[1]) == _q_method) {
+                *result = 6;
+                return;
+            }
+        }
+        {
+            using _t = void (Worker::*)(const std::vector<std::tuple<double,double,std::string,double>> & );
+            if (_t _q_method = &Worker::signal_token_latency_info; *reinterpret_cast<_t *>(_a[1]) == _q_method) {
+                *result = 7;
+                return;
+            }
+        }
     }
 }
 
@@ -194,13 +239,13 @@ int Worker::qt_metacall(QMetaObject::Call _c, int _id, void **_a)
     if (_id < 0)
         return _id;
     if (_c == QMetaObject::InvokeMetaMethod) {
-        if (_id < 6)
+        if (_id < 9)
             qt_static_metacall(this, _c, _id, _a);
-        _id -= 6;
+        _id -= 9;
     } else if (_c == QMetaObject::RegisterMethodArgumentMetaType) {
-        if (_id < 6)
+        if (_id < 9)
             *reinterpret_cast<QMetaType *>(_a[0]) = QMetaType();
-        _id -= 6;
+        _id -= 9;
     }
     return _id;
 }
@@ -237,5 +282,26 @@ void Worker::signal_new_audio_chunck(double _t1, double _t2, const std::vector<f
 {
     void *_a[] = { nullptr, const_cast<void*>(reinterpret_cast<const void*>(std::addressof(_t1))), const_cast<void*>(reinterpret_cast<const void*>(std::addressof(_t2))), const_cast<void*>(reinterpret_cast<const void*>(std::addressof(_t3))) };
     QMetaObject::activate(this, &staticMetaObject, 4, _a);
+}
+
+// SIGNAL 5
+void Worker::signal_audio_buffer_info(double _t1, double _t2)
+{
+    void *_a[] = { nullptr, const_cast<void*>(reinterpret_cast<const void*>(std::addressof(_t1))), const_cast<void*>(reinterpret_cast<const void*>(std::addressof(_t2))) };
+    QMetaObject::activate(this, &staticMetaObject, 5, _a);
+}
+
+// SIGNAL 6
+void Worker::signal_whisperflow_restarting(bool _t1)
+{
+    void *_a[] = { nullptr, const_cast<void*>(reinterpret_cast<const void*>(std::addressof(_t1))) };
+    QMetaObject::activate(this, &staticMetaObject, 6, _a);
+}
+
+// SIGNAL 7
+void Worker::signal_token_latency_info(const std::vector<std::tuple<double,double,std::string,double>> & _t1)
+{
+    void *_a[] = { nullptr, const_cast<void*>(reinterpret_cast<const void*>(std::addressof(_t1))) };
+    QMetaObject::activate(this, &staticMetaObject, 7, _a);
 }
 QT_WARNING_POP

@@ -1,4 +1,4 @@
-# the qt version -- by FL Dec 2024
+# the qt version -- by Rongxiang Wang, Felix Lin, Dec 2024
 ## in whisper-1.6.2 directory
 make libwhisper.a
 make lib_whisper_stream.a

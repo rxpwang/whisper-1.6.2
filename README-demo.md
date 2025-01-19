@@ -4,6 +4,7 @@
 ```
 brew install sdl2
 brew install qt
+brew install portaudio
 ```
 
 tested on qt version: 
