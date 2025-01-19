@@ -81,6 +81,11 @@ public:
         update();
     }
 
+    // return the current wave end
+    double get_current_wave_end(void) {
+        return current_wave_end;
+    }
+
 protected:
     void initializeGL() override {
         initializeOpenGLFunctions();
@@ -469,8 +474,13 @@ private:
         text += "</font>";
 
         // Append average latency in a new line
-        text += QString("<br><font color='blue'>Average Latency: %1 s</font>")
-                .arg(QString::number(avg_token_latency, 'f', 2));
+        // when the current audio end time is longer than 15s, we show the average latency, otherwise we show "---"
+        if (waveformWidget->get_current_wave_end() > 15) {
+            text += QString("<br><font color='blue'>Average Latency: %1 s</font>")
+                    .arg(QString::number(avg_token_latency, 'f', 2));
+        } else {
+            text += "<br><font color='blue'>Average Latency: ---</font>";
+        }
         
         // version (ours vs theirs, and model name) 
         text += "<br><font color='black'>Version: " + QString::fromStdString(version);
