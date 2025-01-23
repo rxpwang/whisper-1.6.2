@@ -81,6 +81,11 @@ public:
         update();
     }
 
+    // return the current wave start
+    double get_current_wave_start(void) {
+        return current_wave_start;
+    }
+
     // return the current wave end
     double get_current_wave_end(void) {
         return current_wave_end;
@@ -114,8 +119,8 @@ protected:
         if (tmp_waveform_data.size() < MY_WHISPER_SAMPLE_RATE * DRAW_MOST_RECENT_SEC) {
             tmp_waveform_data.resize(MY_WHISPER_SAMPLE_RATE * DRAW_MOST_RECENT_SEC, 0.0f);
         }
-        int audio_buffer_start_sample = (int(audio_buffer_start - current_wave_start) * MY_WHISPER_SAMPLE_RATE);
-        int audio_buffer_end_sample = (int(audio_buffer_end - current_wave_start) * MY_WHISPER_SAMPLE_RATE);
+        int audio_buffer_start_sample = ((audio_buffer_start - current_wave_start) * MY_WHISPER_SAMPLE_RATE);
+        int audio_buffer_end_sample = ((audio_buffer_end - current_wave_start) * MY_WHISPER_SAMPLE_RATE);
         int audio_buffer_print_flag = 0;
         for (int i = 0; i < tmp_waveform_data.size(); ++i) {
             float x = static_cast<float>(i) / (tmp_waveform_data.size() - 1) * 2.0f - 1.0f; // Normalize to [-1, 1]
@@ -165,6 +170,7 @@ protected:
         painter.drawText(startpos, height() * 5 / 6, audioBufferStartText);
         painter.drawText(endpos, height() * 5 / 6, audioBufferEndText);
         //painter.end();
+        double audio_buffer_length = audio_buffer_end - audio_buffer_start;
         // Draw confirmed tokens aligned with waveform
         painter.setPen(Qt::green);
         for (const auto& token : all_confirmed_tokens) {
@@ -172,6 +178,8 @@ protected:
             std::string transcript;
             std::tie(start_time_tmp, end_time_tmp, transcript) = token;
             double token_time = (start_time_tmp + end_time_tmp) / 2;
+            // adjust the timestamp regarding the hush word length 0.5s
+            token_time = audio_buffer_start + (token_time - audio_buffer_start) * (audio_buffer_length - 0.5) / audio_buffer_length;
 
             if (start_time_tmp >= current_wave_start && end_time_tmp <= current_wave_end) {
                 //float xpos = 3 + ((token_time - current_wave_start) / (current_wave_end - current_wave_start)) * width();
@@ -193,12 +201,18 @@ protected:
             std::string transcript;
             std::tie(start_time_tmp, end_time_tmp, transcript) = token;
             double token_time = (start_time_tmp + end_time_tmp) / 2;
+            token_time = audio_buffer_start + (token_time - audio_buffer_start) * (audio_buffer_length - 0.5) / audio_buffer_length;
 
             if (start_time_tmp >= current_wave_start && end_time_tmp <= current_wave_end) {
                 //float xpos = 3 + ((token_time - current_wave_start) / (current_wave_end - current_wave_start)) * width();
                 float xpos = 3 + ((token_time - current_wave_start) / (DRAW_MOST_RECENT_SEC)) * width();
                 //painter.drawText(xpos, height() / 2 + 20, QString::fromStdString(transcript));
                 float ypos = height() / 2 + 10;
+
+                QFont font = painter.font();
+                font.setPointSize(16); // Set the desired font size
+                painter.setFont(font);
+
                 painter.save();
                 painter.translate(xpos, ypos);
                 painter.rotate(60);
@@ -461,8 +475,20 @@ private:
     void render_text(void) {
         // render the confirmed tokens (only the last N tokens)
         int N = 100; 
-        QString text = "<font color='green'><b>"; // HTML format
-        unsigned long start_index = std::max(0, static_cast<int>(all_confirmed_tokens.size()) - N);
+        QString text = "<font color='green' size='5'><b>"; // HTML format
+        //unsigned long start_index = std::max(0, static_cast<int>(all_confirmed_tokens.size()) - N);
+        // check the current start wave time, show the token after the start wave time
+        double start_time = waveformWidget->get_current_wave_start();
+        unsigned long start_index = 0;
+        for (unsigned long i = 0; i < all_confirmed_tokens.size(); ++i) {
+            double token_start_time, token_end_time;
+            std::string transcript;
+            std::tie(token_start_time, token_end_time, transcript) = all_confirmed_tokens[i];
+            if (token_start_time >= start_time) {
+                start_index = i;
+                break;
+            }
+        }
         for (unsigned long i = start_index; i < all_confirmed_tokens.size(); ++i) {
             double start_time, end_time;
             std::string transcript;
@@ -472,7 +498,7 @@ private:
         text += "</b></font>";
         
         // render all the unconfirmed tokens
-        text += "<font color='gray'>"; // HTML format
+        text += "<font color='gray' size='5'>"; // HTML format
         for (const auto& token : unconfirmed_tokens) {
             double start_time, end_time;
             std::string transcript;
@@ -484,14 +510,14 @@ private:
         // Append average latency in a new line
         // when the current audio end time is longer than 15s, we show the average latency, otherwise we show "---"
         if (waveformWidget->get_current_wave_end() > 15) {
-            text += QString("<br><font color='blue'>Average Latency: %1 s</font>")
-                    .arg(QString::number(avg_token_latency, 'f', 2));
+            text += QString("<br><font color='blue' size='5'>Average Latency: %1 s</font>")
+                    .arg(QString::number(avg_token_latency + 0.5, 'f', 2));
         } else {
-            text += "<br><font color='blue'>Average Latency: ---</font>";
+            text += "<br><font color='blue' size='5'>Average Latency: ---</font>";
         }
         
         // version (ours vs theirs, and model name) 
-        text += "<br><font color='black'>Version: " + QString::fromStdString(version);
+        text += "<br><font color='black' size='5'>Version: " + QString::fromStdString(version);
         text += " | Model: " + QString::fromStdString(model) + "</font>";
 
         std::cout << text.toStdString() << std::endl;
@@ -501,7 +527,7 @@ private:
 
     // render long space lines to flush the previous text
     void render_space(void) {
-        QString text = "<font color='green'><b>"; // HTML format
+        QString text = "<font color='green' size='5'><b>"; // HTML format
         for (int i = 0; i < 10000; ++i) {
             text += "<br>";
         }
