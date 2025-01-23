@@ -35,7 +35,7 @@ public:
     void setWaveformData(const std::vector<float> &data)
     {
 #define MY_WHISPER_SAMPLE_RATE      16000
-#define DRAW_MOST_RECENT_SEC        30
+#define DRAW_MOST_RECENT_SEC        15
 #define MAX_WAVEFORM_SAMPLES        (MY_WHISPER_SAMPLE_RATE * DRAW_MOST_RECENT_SEC)
         // m_waveformData = data;
         // WHISPER_SAMPLE_RATE default 16K
@@ -114,19 +114,27 @@ protected:
         if (tmp_waveform_data.size() < MY_WHISPER_SAMPLE_RATE * DRAW_MOST_RECENT_SEC) {
             tmp_waveform_data.resize(MY_WHISPER_SAMPLE_RATE * DRAW_MOST_RECENT_SEC, 0.0f);
         }
-        for (size_t i = 0; i < tmp_waveform_data.size(); ++i) {
+        int audio_buffer_start_sample = (int(audio_buffer_start - current_wave_start) * MY_WHISPER_SAMPLE_RATE);
+        int audio_buffer_end_sample = (int(audio_buffer_end - current_wave_start) * MY_WHISPER_SAMPLE_RATE);
+        int audio_buffer_print_flag = 0;
+        for (int i = 0; i < tmp_waveform_data.size(); ++i) {
             float x = static_cast<float>(i) / (tmp_waveform_data.size() - 1) * 2.0f - 1.0f; // Normalize to [-1, 1]
             // drawing the audio buffer part with different color
-            int audio_buffer_start_sample = ((audio_buffer_start - current_wave_start) * MY_WHISPER_SAMPLE_RATE);
-            int audio_buffer_end_sample = ((audio_buffer_end - current_wave_start) * MY_WHISPER_SAMPLE_RATE);
+            // print debug info that show the audio buffer start and end sample and the current sample index
+            //std::cout << "audio_buffer_start_sample: " << audio_buffer_start_sample << ", audio_buffer_end_sample: " << audio_buffer_end_sample << ", i: " << i << std::endl;
             if (i >= audio_buffer_start_sample && i <= audio_buffer_end_sample) {
                 glColor3f(1.0f, 0.84f, 0.0f); // Red color for the audio buffer
+                audio_buffer_print_flag = 1;
             } else {
                 glColor3f(0.0f, 1.0f, 0.0f); // Green color for the waveform
             }
             glVertex2f(x, tmp_waveform_data[i]);
         }
         glEnd();
+        // print audio buffer print debug info
+        if (audio_buffer_print_flag == 0) {
+            std::cout << "Audio buffer not printed! audio_buffer_start_sample: " << audio_buffer_start_sample << ", audio_buffer_end_sample: " << audio_buffer_end_sample << std::endl;
+        }
 
         // Render start and end indices with QPainter
         QPainter painter(this);
