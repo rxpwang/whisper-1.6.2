@@ -1,3 +1,14 @@
+# WhisperFlow: speech foundation models in real time
+
+## Demo
+For Demo, check "demo" branch and follow instruction in "examples/whisper-qt/README-qt.md"
+
+## Experiments
+For testing the WhisperFlow system with existing pre-recorded audio, check "pipeline_serialized" branch for system with hush word and beam pruning, "pipeline" branch for system with all three techniques. 
+
+Paper: https://arxiv.org/abs/2412.11272
+
+
 # whisper.cpp
 
 ![whisper.cpp](https://user-images.githubusercontent.com/1991296/235238348-05d0f6a4-da44-4900-a1de-d0707e75b763.jpeg)
